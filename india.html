@@ -1,0 +1,2313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Aethelgard - Cinematic 3D Journey</title>
+  <meta name="description" content="An interactive cinematic 3D storytelling web experience driven by scroll, Three.js, and WebGL." />
+  <meta property="og:title" content="Aethelgard - Cinematic 3D Journey" />
+  <meta property="og:description" content="An interactive cinematic 3D storytelling web experience driven by scroll, Three.js, and WebGL." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Google Fonts: Cinzel & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       RESET & BASE STYLING
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --font-display: 'Cinzel', serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --color-bg: #05070c;
+      --color-gold: #e5b95c;
+      --color-cyan: #4ff8d2;
+      --color-text-primary: #f0f4fc;
+      --color-text-muted: #828ca3;
+      --color-border: rgba(255, 255, 255, 0.12);
+      --color-surface: rgba(10, 15, 26, 0.75);
+    }
+
+    html {
+      width: 100%;
+      height: 100%;
+      background-color: var(--color-bg);
+      color: var(--color-text-primary);
+      font-family: var(--font-body);
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      width: 100%;
+      min-height: 100%;
+      background-color: var(--color-bg);
+      color: var(--color-text-primary);
+      font-family: var(--font-body);
+      overflow-x: hidden;
+      overscroll-behavior: none;
+      position: relative;
+    }
+
+    /* Fixed WebGL Canvas Container */
+    #canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: auto;
+    }
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Virtual Scroll Proxy for Native & Touch Inertia */
+    #scroll-proxy {
+      position: relative;
+      width: 100%;
+      height: 900vh; /* 9 full viewport heights for a luxurious pacing */
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ==========================================================================
+       TOP BAR HUD (Zone 1: Brand, Zone 2: Chapters, Zone 3: Actions)
+       ========================================================================== */
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem 2rem;
+      background: linear-gradient(180deg, rgba(5,7,12,0.85) 0%, rgba(5,7,12,0) 100%);
+      pointer-events: none;
+    }
+
+    .brand-wordmark {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: var(--color-text-primary);
+      text-transform: uppercase;
+      pointer-events: auto;
+      text-shadow: 0 0 20px rgba(79, 248, 210, 0.3);
+    }
+
+    .chapter-nav {
+      display: none;
+      align-items: center;
+      gap: 1.75rem;
+      pointer-events: auto;
+    }
+
+    @media (min-width: 900px) {
+      .chapter-nav {
+        display: flex;
+      }
+    }
+
+    .chapter-btn {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color 0.25s ease;
+      position: relative;
+      padding-bottom: 4px;
+    }
+
+    .chapter-btn:hover {
+      color: var(--color-text-primary);
+    }
+
+    .chapter-btn.active {
+      color: var(--color-cyan);
+    }
+
+    .chapter-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1.5px;
+      background: var(--color-cyan);
+      box-shadow: 0 0 8px var(--color-cyan);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      pointer-events: auto;
+    }
+
+    .sound-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      backdrop-filter: blur(12px);
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      color: var(--color-text-primary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .sound-toggle-btn:hover {
+      border-color: var(--color-cyan);
+      box-shadow: 0 0 15px rgba(79, 248, 210, 0.2);
+    }
+
+    .sound-wave {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 12px;
+    }
+
+    .sound-bar {
+      width: 2px;
+      height: 100%;
+      background: var(--color-cyan);
+      border-radius: 1px;
+      transition: height 0.2s ease;
+    }
+
+    .sound-muted .sound-bar {
+      height: 3px !important;
+      background: var(--color-text-muted);
+    }
+
+    /* ==========================================================================
+       CINEMATIC SCENE TEXT OVERLAYS
+       ========================================================================== */
+    .narrative-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .narrative-card {
+      position: absolute;
+      max-width: 800px;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(24px) scale(0.97);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .narrative-card.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .narrative-kicker {
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      color: var(--color-cyan);
+      text-transform: uppercase;
+      text-shadow: 0 0 10px rgba(79, 248, 210, 0.5);
+    }
+
+    .narrative-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.2rem, 6vw, 4.5rem);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      line-height: 1.1;
+      text-transform: uppercase;
+      color: #ffffff;
+      text-shadow: 0 0 30px rgba(255, 255, 255, 0.25);
+    }
+
+    .narrative-desc {
+      font-family: var(--font-body);
+      font-size: clamp(0.95rem, 1.8vw, 1.2rem);
+      font-weight: 300;
+      line-height: 1.7;
+      color: var(--color-text-muted);
+      max-width: 600px;
+      text-wrap: balance;
+    }
+
+    .narrative-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 1rem;
+      padding: 0.4rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      letter-spacing: 0.15em;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+    }
+
+    .scroll-arrow {
+      animation: bounce 2s infinite ease-in-out;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(4px); }
+    }
+
+    /* ==========================================================================
+       INTERACTIVE RELIC INSPECTION HUD (Scene 5)
+       ========================================================================== */
+    .relic-modal {
+      position: fixed;
+      right: 2rem;
+      top: 50%;
+      transform: translateY(-50%) translateX(120%);
+      width: min(380px, calc(100vw - 3rem));
+      background: rgba(8, 12, 22, 0.88);
+      border: 1px solid var(--color-border);
+      backdrop-filter: blur(20px);
+      border-radius: 1rem;
+      padding: 2rem;
+      z-index: 30;
+      color: var(--color-text-primary);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(79, 248, 210, 0.1);
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+      opacity: 0;
+      pointer-events: auto;
+    }
+
+    .relic-modal.active {
+      transform: translateY(-50%) translateX(0);
+      opacity: 1;
+    }
+
+    .relic-modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .relic-badge {
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      color: var(--color-cyan);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .relic-title {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .relic-close-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 1rem;
+    }
+
+    .relic-close-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: #fff;
+    }
+
+    .relic-body {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--color-text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .relic-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+    }
+
+    .stat-val {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--color-cyan);
+      margin-top: 0.25rem;
+    }
+
+    .relic-action-btn {
+      width: 100%;
+      padding: 0.75rem 1.25rem;
+      background: linear-gradient(135deg, rgba(79, 248, 210, 0.2) 0%, rgba(79, 248, 210, 0.05) 100%);
+      border: 1px solid var(--color-cyan);
+      border-radius: 0.5rem;
+      color: var(--color-cyan);
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .relic-action-btn:hover {
+      background: var(--color-cyan);
+      color: #05070c;
+      box-shadow: 0 0 20px rgba(79, 248, 210, 0.4);
+    }
+
+    /* Hover hint icon on interactive objects */
+    #hover-hint {
+      position: fixed;
+      pointer-events: none;
+      z-index: 25;
+      padding: 0.4rem 0.8rem;
+      background: rgba(5, 7, 12, 0.85);
+      border: 1px solid var(--color-cyan);
+      box-shadow: 0 0 15px rgba(79, 248, 210, 0.3);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--color-cyan);
+      text-transform: uppercase;
+      opacity: 0;
+      transform: translate(-50%, -150%);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    #hover-hint.active {
+      opacity: 1;
+      transform: translate(-50%, -120%);
+    }
+
+    /* ==========================================================================
+       PROGRESS BAR & BOTTOM FOOTER
+       ========================================================================== */
+    .bottom-hud {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      z-index: 20;
+      pointer-events: none;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(0deg, rgba(5,7,12,0.85) 0%, rgba(5,7,12,0) 100%);
+    }
+
+    .progress-track {
+      flex: 1;
+      max-width: 400px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 1px;
+      position: relative;
+      margin: 0 1.5rem;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-cyan), var(--color-gold));
+      box-shadow: 0 0 10px var(--color-cyan);
+      transition: width 0.1s linear;
+    }
+
+    .progress-text {
+      font-size: 0.75rem;
+      font-family: var(--font-body);
+      color: var(--color-text-muted);
+      letter-spacing: 0.15em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .curator-tag {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      letter-spacing: 0.1em;
+    }
+
+    /* ==========================================================================
+       FINAL SCREEN & REPLAY BUTTON (Scene 7)
+       ========================================================================== */
+    .replay-cta-group {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-top: 2rem;
+      pointer-events: auto;
+    }
+
+    .btn-primary {
+      padding: 0.9rem 2.25rem;
+      background: linear-gradient(135deg, var(--color-cyan) 0%, #20b893 100%);
+      color: #05070c;
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 9999px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(79, 248, 210, 0.35);
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 35px rgba(79, 248, 210, 0.6);
+    }
+
+    .btn-secondary {
+      padding: 0.9rem 2rem;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--color-text-primary);
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      border: 1px solid var(--color-border);
+      border-radius: 9999px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+      border-color: #ffffff;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    /* ==========================================================================
+       PRELOADER OVERLAY
+       ========================================================================== */
+    #preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #05070c;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      transition: opacity 1s cubic-bezier(0.16, 1, 0.3, 1), visibility 1s ease;
+    }
+
+    #preloader.loaded {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loader-ring {
+      width: 80px;
+      height: 80px;
+      border: 2px solid rgba(79, 248, 210, 0.15);
+      border-top: 2px solid var(--color-cyan);
+      border-radius: 50%;
+      animation: spin 1.4s infinite linear;
+      margin-bottom: 2rem;
+      box-shadow: 0 0 20px rgba(79, 248, 210, 0.2);
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loader-title {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+      color: #ffffff;
+    }
+
+    .loader-subtitle {
+      font-size: 0.85rem;
+      letter-spacing: 0.2em;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+    }
+
+    .loader-progress-bar {
+      width: 240px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 1px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .loader-progress-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--color-cyan);
+      transition: width 0.2s ease;
+    }
+
+    .enter-btn {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.5s ease;
+      padding: 0.85rem 2.5rem;
+      background: transparent;
+      border: 1px solid var(--color-cyan);
+      color: var(--color-cyan);
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      border-radius: 9999px;
+      cursor: pointer;
+    }
+
+    .enter-btn.ready {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .enter-btn:hover {
+      background: var(--color-cyan);
+      color: #05070c;
+      box-shadow: 0 0 30px rgba(79, 248, 210, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D Canvas Target -->
+  <div id="canvas-container"></div>
+
+  <!-- Smooth Virtual Scroll Height -->
+  <div id="scroll-proxy"></div>
+
+  <!-- Floating Hover Tooltip -->
+  <div id="hover-hint">Click to Inspect</div>
+
+  <!-- Top Bar HUD -->
+  <header class="top-bar">
+    <div class="brand-wordmark">Aethelgard</div>
+
+    <nav class="chapter-nav">
+      <button class="chapter-btn active" data-progress="0.0">01. Portal</button>
+      <button class="chapter-btn" data-progress="0.22">02. Realm</button>
+      <button class="chapter-btn" data-progress="0.42">03. Sentinel</button>
+      <button class="chapter-btn" data-progress="0.60">04. Metamorphosis</button>
+      <button class="chapter-btn" data-progress="0.75">05. Sanctuary</button>
+      <button class="chapter-btn" data-progress="0.88">06. Warp</button>
+      <button class="chapter-btn" data-progress="0.99">07. Monolith</button>
+    </nav>
+
+    <div class="top-actions">
+      <button id="sound-btn" class="sound-toggle-btn sound-muted" title="Toggle Cinematic Audio">
+        <div class="sound-wave">
+          <span class="sound-bar" style="height: 6px;"></span>
+          <span class="sound-bar" style="height: 12px;"></span>
+          <span class="sound-bar" style="height: 8px;"></span>
+          <span class="sound-bar" style="height: 10px;"></span>
+        </div>
+        <span id="sound-label">Audio Off</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Narrative Layer Over 3D World -->
+  <main class="narrative-container">
+
+    <!-- Scene 1: Intro -->
+    <div class="narrative-card visible" id="card-scene-1">
+      <span class="narrative-kicker">Genesis · The Continuum</span>
+      <h1 class="narrative-title">Awaken The Anomaly</h1>
+      <p class="narrative-desc">
+        Before form and dimension, a singularity pulses in the quiet abyss. 
+        Scroll forward to draw near and ignite the gateway of light.
+      </p>
+      <div class="narrative-hint">
+        <span class="scroll-arrow">↓</span>
+        <span>Scroll to delve deeper</span>
+      </div>
+    </div>
+
+    <!-- Scene 2: World -->
+    <div class="narrative-card" id="card-scene-2">
+      <span class="narrative-kicker">Territory · Cosmic Drift</span>
+      <h2 class="narrative-title">The Floating Citadel</h2>
+      <p class="narrative-desc">
+        Passing through the threshold, monumental spires levitate in celestial equilibrium. 
+        Geometry and starlight converge in infinite expanse.
+      </p>
+    </div>
+
+    <!-- Scene 3: Character / Sentinel -->
+    <div class="narrative-card" id="card-scene-3">
+      <span class="narrative-kicker">Entity · The Watcher</span>
+      <h2 class="narrative-title">The Cybernetic Sentinel</h2>
+      <p class="narrative-desc">
+        An ancient celestial guardian stands vigilant at the crossroads of eternity. 
+        Its core resonates with harmonic energy from forgotten ages.
+      </p>
+    </div>
+
+    <!-- Scene 4: Metamorphosis / Transformation -->
+    <div class="narrative-card" id="card-scene-4">
+      <span class="narrative-kicker">Phenomenon · Entropy & Order</span>
+      <h2 class="narrative-title">Geometric Metamorphosis</h2>
+      <p class="narrative-desc">
+        A sacred hypercube fractures into dispersed quantum shards, 
+        whirling through space before reassembling into higher dimensional order.
+      </p>
+    </div>
+
+    <!-- Scene 5: Interaction / Relic Sanctuary -->
+    <div class="narrative-card" id="card-scene-5">
+      <span class="narrative-kicker">Sanctuary · Artifact Chamber</span>
+      <h2 class="narrative-title">Touch The Relics</h2>
+      <p class="narrative-desc">
+        Three ancient mechanisms hover in resonance. 
+        Move your cursor and select a relic to inspect its temporal matrix.
+      </p>
+    </div>
+
+    <!-- Scene 6: Cinematic Hyperdrive Flight -->
+    <div class="narrative-card" id="card-scene-6">
+      <span class="narrative-kicker">Acceleration · Hyperdrive</span>
+      <h2 class="narrative-title">Warp Trajectory</h2>
+      <p class="narrative-desc">
+        Breaking the dimensional sound barrier. 
+        Stars blur into brilliant velocity streaks as the continuum propels you forward.
+      </p>
+    </div>
+
+    <!-- Scene 7: Final Monolith & Replay -->
+    <div class="narrative-card" id="card-scene-7">
+      <span class="narrative-kicker">Epilogue · The Eternal Gate</span>
+      <h2 class="narrative-title">Your Story Starts Here</h2>
+      <p class="narrative-desc">
+        You have traversed the boundaries of light, matter, and mind. 
+        The horizon is ever-expanding. Rewind the continuum to experience it anew.
+      </p>
+      <div class="replay-cta-group">
+        <button id="replay-btn" class="btn-primary">Replay Journey</button>
+        <button id="freecam-btn" class="btn-secondary">Free Orbit Mode</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Interactive Relic Inspection HUD Panel -->
+  <aside class="relic-modal" id="relic-modal">
+    <div class="relic-modal-header">
+      <div>
+        <div class="relic-badge" id="modal-badge">Quantum Relic 01</div>
+        <h3 class="relic-title" id="modal-title">Chronos Gyroscope</h3>
+      </div>
+      <button class="relic-close-btn" id="modal-close-btn" title="Close Inspection">✕</button>
+    </div>
+
+    <p class="relic-body" id="modal-desc">
+      An intricate golden astrolabe containing the temporal blueprint of Aethelgard. 
+      Rotating counter-clockwise bends local space-time gravity.
+    </p>
+
+    <div class="relic-stats">
+      <div>
+        <div class="stat-label">Frequency</div>
+        <div class="stat-val" id="modal-stat1">432.8 Hz</div>
+      </div>
+      <div>
+        <div class="stat-label">Resonance</div>
+        <div class="stat-val" id="modal-stat2">99.4%</div>
+      </div>
+    </div>
+
+    <button class="relic-action-btn" id="modal-action-btn">Trigger Harmonics</button>
+  </aside>
+
+  <!-- Bottom HUD: Progress & Curator -->
+  <footer class="bottom-hud">
+    <div class="progress-text" id="chapter-label">01 / PORTAL</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-bar"></div>
+    </div>
+    <div class="progress-text" id="progress-percent">0%</div>
+  </footer>
+
+  <!-- Preloader Screen -->
+  <div id="preloader">
+    <div class="loader-ring"></div>
+    <h2 class="loader-title">Aethelgard</h2>
+    <p class="loader-subtitle">Synthesizing 3D Realtime Continuum</p>
+    <div class="loader-progress-bar">
+      <div class="loader-progress-fill" id="loader-fill"></div>
+    </div>
+    <button class="enter-btn" id="enter-btn">Enter The Experience</button>
+  </div>
+
+  <!-- CDN IMPORTS: Three.js r128, GSAP, OrbitControls (for free orbit mode) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- ==========================================================================
+       MAIN JAVASCRIPT ENGINE (All Self-Contained)
+       ========================================================================== -->
+  <script>
+    /**
+     * AETHELGARD - CINEMATIC 3D STORYTELLING ENGINE
+     * Built with Three.js, WebGL & GSAP
+     * 100% Standalone - Zero External Asset Dependencies - Runs in file:// or web
+     */
+
+    // ==========================================================================
+    // 1. CONFIG & SYSTEM STATE
+    // ==========================================================================
+    const CONFIG = {
+      fogColor: 0x05070c,
+      fogDensity: 0.0075,
+      cameraFov: 50,
+      near: 0.1,
+      far: 1000,
+      splineTension: 0.5,
+      lerpSpeed: 0.11,
+      mobileLerpSpeed: 0.13,
+    };
+
+    const STATE = {
+      scrollProgress: 0,
+      targetProgress: 0,
+      isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768,
+      soundEnabled: false,
+      inspectingRelic: false,
+      freeOrbitMode: false,
+      hoveredRelic: null,
+      mouse: new THREE.Vector2(-100, -100),
+      mouseParallax: new THREE.Vector2(0, 0),
+      time: 0,
+      activeSceneIndex: 0,
+    };
+
+    // ==========================================================================
+    // 2. PROCEDURAL WEB AUDIO SYNTHESIZER (No external audio files needed!)
+    // ==========================================================================
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.droneOsc1 = null;
+        this.droneOsc2 = null;
+        this.droneFilter = null;
+        this.isInitialized = false;
+      }
+
+      init() {
+        if (this.isInitialized) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        this.ctx = new AudioContext();
+
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+
+        // Sub Drone Oscillator (55Hz A1)
+        this.droneOsc1 = this.ctx.createOscillator();
+        this.droneOsc1.type = 'sawtooth';
+        this.droneOsc1.frequency.setValueAtTime(55, this.ctx.currentTime);
+
+        // Sub Bass Harmonics (110Hz A2)
+        this.droneOsc2 = this.ctx.createOscillator();
+        this.droneOsc2.type = 'triangle';
+        this.droneOsc2.frequency.setValueAtTime(110, this.ctx.currentTime);
+
+        // Resonant Lowpass Filter
+        this.droneFilter = this.ctx.createBiquadFilter();
+        this.droneFilter.type = 'lowpass';
+        this.droneFilter.frequency.setValueAtTime(180, this.ctx.currentTime);
+        this.droneFilter.Q.setValueAtTime(4, this.ctx.currentTime);
+
+        // Gain Nodes
+        const droneGain = this.ctx.createGain();
+        droneGain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+
+        this.droneOsc1.connect(this.droneFilter);
+        this.droneOsc2.connect(this.droneFilter);
+        this.droneFilter.connect(droneGain);
+        droneGain.connect(this.masterGain);
+
+        this.droneOsc1.start();
+        this.droneOsc2.start();
+
+        this.isInitialized = true;
+      }
+
+      toggle() {
+        if (!this.isInitialized) this.init();
+        if (!this.ctx) return false;
+
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+
+        STATE.soundEnabled = !STATE.soundEnabled;
+        const targetVol = STATE.soundEnabled ? 0.35 : 0.0001;
+        this.masterGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.4);
+        return STATE.soundEnabled;
+      }
+
+      playPing(freq = 880, duration = 0.25) {
+        if (!STATE.soundEnabled || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(freq * 1.5, this.ctx.currentTime + duration);
+
+          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch(e) {}
+      }
+
+      playChord(freqs = [440, 554.37, 659.25], duration = 1.2) {
+        if (!STATE.soundEnabled || !this.ctx) return;
+        freqs.forEach(freq => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+          gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        });
+      }
+
+      updateScrollFilter(progress) {
+        if (!this.isInitialized || !this.droneFilter) return;
+        // Modulate synth filter frequency as user navigates through space
+        const cutoff = 120 + Math.sin(progress * Math.PI) * 450 + (progress > 0.85 ? 600 : 0);
+        this.droneFilter.frequency.setTargetAtTime(cutoff, this.ctx.currentTime, 0.1);
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    // ==========================================================================
+    // 3. THREE.JS INITIALIZATION
+    // ==========================================================================
+    let scene, camera, renderer, raycaster, orbitControls;
+    let cameraSpline, lookAtSpline;
+
+    // Object Groups
+    let portalGroup, worldGroup, sentinelGroup, transformGroup, relicsGroup, warpGroup, monolithGroup;
+    let cosmicParticles, warpStreaksMesh;
+    const interactiveRelics = [];
+    const transformFragments = [];
+
+    const container = document.getElementById('canvas-container');
+
+    function initThree() {
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(CONFIG.fogColor);
+      scene.fog = new THREE.FogExp2(CONFIG.fogColor, CONFIG.fogDensity);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(CONFIG.cameraFov, window.innerWidth / window.innerHeight, CONFIG.near, CONFIG.far);
+      camera.position.set(0, 2, 45);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: !STATE.isMobile, alpha: false, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, STATE.isMobile ? 1.5 : 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      container.appendChild(renderer.domElement);
+
+      // Raycaster for user interaction
+      raycaster = new THREE.Raycaster();
+
+      // Free Orbit Controls (with built-in fallback)
+      if (typeof THREE.OrbitControls === 'function') {
+        orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+        orbitControls.enableDamping = true;
+        orbitControls.dampingFactor = 0.05;
+        orbitControls.enabled = false;
+      } else {
+        orbitControls = createFallbackOrbitControls(camera, renderer.domElement);
+      }
+
+      // Setup Camera Waypoint Splines
+      setupCameraSplines();
+
+      // Setup Lighting
+      setupLighting();
+
+      // Build Scenes
+      createCosmicStarfield();
+      createScene01_Portal();
+      createScene02_World();
+      createScene03_Sentinel();
+      createScene04_Transformation();
+      createScene05_Relics();
+      createScene06_WarpFlight();
+      createScene07_Monolith();
+
+      // Event Listeners
+      window.addEventListener('resize', onWindowResize, false);
+      window.addEventListener('mousemove', onMouseMove, false);
+      window.addEventListener('click', onClick, false);
+
+      // Mobile Touch Handling for Virtual Scroll
+      setupTouchScroll();
+    }
+
+    function createFallbackOrbitControls(cam, domElement) {
+      const controls = {
+        enabled: false,
+        target: new THREE.Vector3(0, 4.0, -345),
+        update: function() {}
+      };
+      let isDragging = false;
+      let prevMouse = { x: 0, y: 0 };
+      let spherical = { radius: 35, theta: 0, phi: Math.PI / 2.6 };
+
+      domElement.addEventListener('mousedown', (e) => {
+        if (!controls.enabled) return;
+        isDragging = true;
+        prevMouse.x = e.clientX;
+        prevMouse.y = e.clientY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!controls.enabled || !isDragging) return;
+        const dx = e.clientX - prevMouse.x;
+        const dy = e.clientY - prevMouse.y;
+        prevMouse.x = e.clientX;
+        prevMouse.y = e.clientY;
+
+        spherical.theta -= dx * 0.006;
+        spherical.phi = Math.max(0.15, Math.min(Math.PI - 0.15, spherical.phi - dy * 0.006));
+
+        const sinPhi = Math.sin(spherical.phi);
+        cam.position.x = controls.target.x + spherical.radius * sinPhi * Math.sin(spherical.theta);
+        cam.position.y = controls.target.y + spherical.radius * Math.cos(spherical.phi);
+        cam.position.z = controls.target.z + spherical.radius * sinPhi * Math.cos(spherical.theta);
+        cam.lookAt(controls.target);
+      });
+
+      window.addEventListener('mouseup', () => { isDragging = false; });
+      return controls;
+    }
+
+    // ==========================================================================
+    // 4. CAMERA PATH & SPLINE SYSTEM (CatmullRomCurve3)
+    // ==========================================================================
+    function setupCameraSplines() {
+      // 11 Waypoints weaving continuously through the 3D scenes
+      const cameraPoints = [
+        new THREE.Vector3(0, 1.8, 42),       // 0.00: Scene 1 Intro (approaching portal)
+        new THREE.Vector3(0, 0.4, 10),       // 0.12: Entering Portal
+        new THREE.Vector3(12, 6, -20),       // 0.25: Scene 2 World (Floating Citadel arc)
+        new THREE.Vector3(-10, 4, -55),      // 0.38: Sweeping past crystal structures
+        new THREE.Vector3(0, 2.8, -80),      // 0.46: Scene 3 Approaching Sentinel
+        new THREE.Vector3(7, 2.2, -95),      // 0.53: Orbiting Sentinel
+        new THREE.Vector3(0, 1.5, -115),     // 0.60: Scene 4 Approaching Transform Artifact
+        new THREE.Vector3(0, 0.2, -135),     // 0.66: Piercing center of Exploded Shards
+        new THREE.Vector3(0, 2.6, -165),     // 0.76: Scene 5 Relic Sanctuary Nexus
+        new THREE.Vector3(0, 0.5, -195),     // 0.86: Scene 6 Entering Warp Flight
+        new THREE.Vector3(0, 0.2, -260),     // 0.93: Warp Speed Climax
+        new THREE.Vector3(0, 3.5, -315)      // 1.00: Scene 7 The Eternal Monolith
+      ];
+
+      const lookAtPoints = [
+        new THREE.Vector3(0, 0.5, 0),        // Looking at Portal center
+        new THREE.Vector3(0, 0.2, -15),      // Piercing into wormhole
+        new THREE.Vector3(-2, 2, -45),       // Looking at floating citadel
+        new THREE.Vector3(2, 1, -75),        // Looking ahead to Sentinel
+        new THREE.Vector3(0, 2.2, -95),      // Looking at Sentinel Chest Core
+        new THREE.Vector3(0, 2.0, -95),      // Tracking Sentinel Face
+        new THREE.Vector3(0, 0.8, -135),     // Looking at Transform Cube
+        new THREE.Vector3(0, 0.2, -155),     // Looking through fragment tunnel
+        new THREE.Vector3(0, 1.6, -185),     // Looking at Relic Pedestals
+        new THREE.Vector3(0, 0.2, -240),     // Looking deep into warp horizon
+        new THREE.Vector3(0, 0.2, -310),     // Looking toward warp exit
+        new THREE.Vector3(0, 6.0, -345)      // Gazing up at Monolith Pinnacle
+      ];
+
+      cameraSpline = new THREE.CatmullRomCurve3(cameraPoints, false, 'catmullrom', CONFIG.splineTension);
+      lookAtSpline = new THREE.CatmullRomCurve3(lookAtPoints, false, 'catmullrom', CONFIG.splineTension);
+    }
+
+    // ==========================================================================
+    // 5. LIGHTING SETUP
+    // ==========================================================================
+    let ambientLight, mainDirectionalLight;
+
+    function setupLighting() {
+      ambientLight = new THREE.AmbientLight(0x0e172a, 1.2);
+      scene.add(ambientLight);
+
+      mainDirectionalLight = new THREE.DirectionalLight(0xbbe1fa, 2.0);
+      mainDirectionalLight.position.set(20, 40, 20);
+      scene.add(mainDirectionalLight);
+
+      // Subtle atmospheric rim light
+      const rimLight = new THREE.DirectionalLight(0x4ff8d2, 1.5);
+      rimLight.position.set(-25, -10, -50);
+      scene.add(rimLight);
+    }
+
+    // ==========================================================================
+    // 6. PROCEDURAL COSMIC STARFIELD PARTICLES
+    // ==========================================================================
+    function createCosmicStarfield() {
+      const particleCount = STATE.isMobile ? 1200 : 2800;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const colors = new Float32Array(particleCount * 3);
+
+      const colorPalette = [
+        new THREE.Color(0x4ff8d2), // Cyan
+        new THREE.Color(0xe5b95c), // Gold
+        new THREE.Color(0xffffff), // Pure white
+        new THREE.Color(0x3a86ff)  // Azure
+      ];
+
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3]     = (Math.random() - 0.5) * 300;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 150;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 450 - 150;
+
+        const col = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+        colors[i * 3]     = col.r;
+        colors[i * 3 + 1] = col.g;
+        colors[i * 3 + 2] = col.b;
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      // Circular particle texture generator via canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = 32;
+      canvas.height = 32;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.3, 'rgba(79,248,210,0.6)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 32, 32);
+
+      const texture = new THREE.CanvasTexture(canvas);
+
+      const material = new THREE.PointsMaterial({
+        size: 1.8,
+        vertexColors: true,
+        map: texture,
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+
+      cosmicParticles = new THREE.Points(geometry, material);
+      scene.add(cosmicParticles);
+    }
+
+    // ==========================================================================
+    // 7. SCENE 01 — THE CHRONO PORTAL (Z ~ 0)
+    // ==========================================================================
+    let portalRings = [];
+    let portalCore, portalHorizonDisc;
+
+    function createScene01_Portal() {
+      portalGroup = new THREE.Group();
+      portalGroup.position.set(0, 0.5, 0);
+
+      // Ring 1: Outer Ornate Gyroscope
+      const ring1Geo = new THREE.TorusGeometry(6, 0.18, 16, 100);
+      const ringMat = new THREE.MeshStandardMaterial({
+        color: 0x1a2638,
+        metalness: 0.9,
+        roughness: 0.2,
+        emissive: 0x4ff8d2,
+        emissiveIntensity: 0.3
+      });
+      const ring1 = new THREE.Mesh(ring1Geo, ringMat);
+      portalGroup.add(ring1);
+      portalRings.push(ring1);
+
+      // Ring 2: Intermediate Rotating Segment
+      const ring2Geo = new THREE.TorusGeometry(4.4, 0.14, 16, 80);
+      const ring2Mat = new THREE.MeshStandardMaterial({
+        color: 0x221a0f,
+        metalness: 0.85,
+        roughness: 0.25,
+        emissive: 0xe5b95c,
+        emissiveIntensity: 0.4
+      });
+      const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
+      portalGroup.add(ring2);
+      portalRings.push(ring2);
+
+      // Ring 3: Inner High-Speed Ring
+      const ring3Geo = new THREE.TorusGeometry(2.8, 0.1, 16, 60);
+      const ring3Mat = new THREE.MeshStandardMaterial({
+        color: 0x112233,
+        metalness: 0.95,
+        roughness: 0.1,
+        emissive: 0x4ff8d2,
+        emissiveIntensity: 0.8
+      });
+      const ring3 = new THREE.Mesh(ring3Geo, ring3Mat);
+      portalGroup.add(ring3);
+      portalRings.push(ring3);
+
+      // Central Unfolding Core Polyhedron
+      const coreGeo = new THREE.IcosahedronGeometry(1.6, 1);
+      const coreMat = new THREE.MeshPhysicalMaterial({
+        color: 0x05131e,
+        emissive: 0x4ff8d2,
+        emissiveIntensity: 0.5,
+        roughness: 0.15,
+        metalness: 0.8,
+        wireframe: true
+      });
+      portalCore = new THREE.Mesh(coreGeo, coreMat);
+      portalGroup.add(portalCore);
+
+      // Event Horizon Energy Disc
+      const discGeo = new THREE.RingGeometry(0.2, 5.8, 64);
+      const discMat = new THREE.MeshBasicMaterial({
+        color: 0x4ff8d2,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.05,
+        blending: THREE.AdditiveBlending
+      });
+      portalHorizonDisc = new THREE.Mesh(discGeo, discMat);
+      portalGroup.add(portalHorizonDisc);
+
+      // Portal Ambient Glow PointLight
+      const portalLight = new THREE.PointLight(0x4ff8d2, 3, 25);
+      portalLight.position.set(0, 0, 0);
+      portalGroup.add(portalLight);
+
+      scene.add(portalGroup);
+    }
+
+    // ==========================================================================
+    // 8. SCENE 02 — THE FLOATING CITADEL & REALM (Z ~ -20 to -60)
+    // ==========================================================================
+    let worldInstancedCubes;
+    const floatingMonoliths = [];
+
+    function createScene02_World() {
+      worldGroup = new THREE.Group();
+
+      // Floating Crystalline Monoliths
+      const monolithMat = new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        metalness: 0.8,
+        roughness: 0.3,
+        emissive: 0x1e3a5f,
+        emissiveIntensity: 0.2
+      });
+
+      const spirePositions = [
+        { x: 18, y: -2, z: -25, h: 22, r: 2.2 },
+        { x: -16, y: 1, z: -35, h: 26, r: 2.5 },
+        { x: 22, y: 4, z: -48, h: 30, r: 3.0 },
+        { x: -20, y: -4, z: -60, h: 34, r: 3.2 },
+        { x: 0, y: -12, z: -40, h: 14, r: 5.0 } // Deep floating platform
+      ];
+
+      spirePositions.forEach((pos, idx) => {
+        const geo = new THREE.CylinderGeometry(pos.r * 0.3, pos.r, pos.h, 6);
+        const mesh = new THREE.Mesh(geo, monolithMat);
+        mesh.position.set(pos.x, pos.y, pos.z);
+        mesh.rotation.y = idx * 0.7;
+        mesh.rotation.z = (Math.random() - 0.5) * 0.15;
+        worldGroup.add(mesh);
+        floatingMonoliths.push({ mesh, baseY: pos.y, speed: 0.5 + idx * 0.2 });
+
+        // Glowing apex beacon crystal
+        const beaconGeo = new THREE.OctahedronGeometry(pos.r * 0.4);
+        const beaconMat = new THREE.MeshStandardMaterial({
+          color: idx % 2 === 0 ? 0x4ff8d2 : 0xe5b95c,
+          emissive: idx % 2 === 0 ? 0x4ff8d2 : 0xe5b95c,
+          emissiveIntensity: 1.5,
+          roughness: 0.2
+        });
+        const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+        beacon.position.set(pos.x, pos.y + pos.h / 2 + 1.5, pos.z);
+        worldGroup.add(beacon);
+      });
+
+      // Instanced Mesh: 220 Floating Orbiting Polyhedral Blocks
+      const cubeCount = STATE.isMobile ? 120 : 240;
+      const cubeGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+      const cubeMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        metalness: 0.9,
+        roughness: 0.2,
+        emissive: 0x4ff8d2,
+        emissiveIntensity: 0.3
+      });
+
+      worldInstancedCubes = new THREE.InstancedMesh(cubeGeo, cubeMat, cubeCount);
+      const dummy = new THREE.Object3D();
+
+      for (let i = 0; i < cubeCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 35;
+        const x = Math.cos(angle) * radius;
+        const y = (Math.random() - 0.5) * 30;
+        const z = -20 - Math.random() * 50;
+
+        dummy.position.set(x, y, z);
+        dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+        const s = 0.4 + Math.random() * 1.2;
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+
+        worldInstancedCubes.setMatrixAt(i, dummy.matrix);
+      }
+      worldInstancedCubes.instanceMatrix.needsUpdate = true;
+      worldGroup.add(worldInstancedCubes);
+
+      scene.add(worldGroup);
+    }
+
+    // ==========================================================================
+    // 9. SCENE 03 — THE CYBERNETIC SENTINEL CHARACTER (Z ~ -95)
+    // ==========================================================================
+    let sentinelCoreMesh, sentinelHaloRing, sentinelParticles;
+
+    function createScene03_Sentinel() {
+      sentinelGroup = new THREE.Group();
+      sentinelGroup.position.set(0, 0, -95);
+
+      const metalMat = new THREE.MeshStandardMaterial({
+        color: 0x0c1524,
+        metalness: 0.9,
+        roughness: 0.25
+      });
+
+      const goldTrimMat = new THREE.MeshStandardMaterial({
+        color: 0x1f170b,
+        emissive: 0xe5b95c,
+        emissiveIntensity: 0.6,
+        metalness: 0.85,
+        roughness: 0.2
+      });
+
+      // 1. Angular Guardian Helmet & Visor
+      const headGeo = new THREE.CylinderGeometry(0.5, 0.7, 1.2, 5);
+      const headMesh = new THREE.Mesh(headGeo, metalMat);
+      headMesh.position.y = 3.6;
+      sentinelGroup.add(headMesh);
+
+      // Glowing Horizontal Visor
+      const visorGeo = new THREE.BoxGeometry(0.7, 0.12, 0.6);
+      const visorMat = new THREE.MeshBasicMaterial({ color: 0x4ff8d2 });
+      const visor = new THREE.Mesh(visorGeo, visorMat);
+      visor.position.set(0, 3.7, 0.4);
+      sentinelGroup.add(visor);
+
+      // 2. Sculpted Articulated Torso
+      const torsoGeo = new THREE.CylinderGeometry(1.2, 0.6, 2.2, 6);
+      const torsoMesh = new THREE.Mesh(torsoGeo, metalMat);
+      torsoMesh.position.y = 2.1;
+      sentinelGroup.add(torsoMesh);
+
+      // 3. Exposed Glowing Heart Core (Octahedron)
+      const coreGeo = new THREE.OctahedronGeometry(0.5);
+      const coreMat = new THREE.MeshStandardMaterial({
+        color: 0x4ff8d2,
+        emissive: 0x4ff8d2,
+        emissiveIntensity: 2.2,
+        roughness: 0.1
+      });
+      sentinelCoreMesh = new THREE.Mesh(coreGeo, coreMat);
+      sentinelCoreMesh.position.set(0, 2.2, 0.55);
+      sentinelGroup.add(sentinelCoreMesh);
+
+      // 4. Floating Shoulders & Levitating Gauntlets
+      const shoulderGeo = new THREE.BoxGeometry(0.7, 0.4, 0.7);
+      const leftShoulder = new THREE.Mesh(shoulderGeo, goldTrimMat);
+      leftShoulder.position.set(-1.6, 2.8, 0);
+      const rightShoulder = new THREE.Mesh(shoulderGeo, goldTrimMat);
+      rightShoulder.position.set(1.6, 2.8, 0);
+      sentinelGroup.add(leftShoulder);
+      sentinelGroup.add(rightShoulder);
+
+      // Lower Cybernetic Armor Column
+      const baseColGeo = new THREE.CylinderGeometry(0.5, 0.2, 2.8, 4);
+      const baseCol = new THREE.Mesh(baseColGeo, metalMat);
+      baseCol.position.y = 0.2;
+      sentinelGroup.add(baseCol);
+
+      // 5. Rotating Celestial Halo Ring Behind Head
+      const haloGeo = new THREE.TorusGeometry(1.8, 0.06, 16, 64);
+      const haloMat = new THREE.MeshStandardMaterial({
+        color: 0x112233,
+        emissive: 0x4ff8d2,
+        emissiveIntensity: 1.2,
+        metalness: 0.9
+      });
+      sentinelHaloRing = new THREE.Mesh(haloGeo, haloMat);
+      sentinelHaloRing.position.set(0, 3.6, -0.6);
+      sentinelGroup.add(sentinelHaloRing);
+
+      // 6. Orbital Firefly Swarm Around Sentinel
+      const swarmCount = 200;
+      const swarmGeo = new THREE.BufferGeometry();
+      const swarmPositions = new Float32Array(swarmCount * 3);
+
+      for (let i = 0; i < swarmCount; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos((Math.random() * 2) - 1);
+        const r = 2.5 + Math.random() * 3.5;
+
+        swarmPositions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+        swarmPositions[i * 3 + 1] = 2.0 + (Math.random() - 0.5) * 3.0;
+        swarmPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      }
+
+      swarmGeo.setAttribute('position', new THREE.BufferAttribute(swarmPositions, 3));
+      const swarmMat = new THREE.PointsMaterial({
+        color: 0xe5b95c,
+        size: 0.6,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending
+      });
+      sentinelParticles = new THREE.Points(swarmGeo, swarmMat);
+      sentinelGroup.add(sentinelParticles);
+
+      // Focused Spotlight on Character
+      const charSpot = new THREE.SpotLight(0x4ff8d2, 4, 25, Math.PI / 5, 0.3);
+      charSpot.position.set(0, 8, 5);
+      charSpot.target = sentinelGroup;
+      sentinelGroup.add(charSpot);
+
+      scene.add(sentinelGroup);
+    }
+
+    // ==========================================================================
+    // 10. SCENE 04 — OBJECT METAMORPHOSIS & TRANSFORMATION (Z ~ -135)
+    // ==========================================================================
+    function createScene04_Transformation() {
+      transformGroup = new THREE.Group();
+      transformGroup.position.set(0, 0.8, -135);
+
+      // 64 Fracturing Geometric Shards
+      const shardGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+      const shardMat = new THREE.MeshStandardMaterial({
+        color: 0x111c2e,
+        metalness: 0.85,
+        roughness: 0.2,
+        emissive: 0x38ef7d,
+        emissiveIntensity: 0.3
+      });
+
+      const gridSize = 4; // 4x4x4 = 64 fragments
+      const spacing = 0.9;
+      const offset = (gridSize - 1) * spacing * 0.5;
+
+      for (let x = 0; x < gridSize; x++) {
+        for (let y = 0; y < gridSize; y++) {
+          for (let z = 0; z < gridSize; z++) {
+            const mesh = new THREE.Mesh(shardGeo, shardMat.clone());
+            
+            // Initial Assembled Cube Position
+            const startX = x * spacing - offset;
+            const startY = y * spacing - offset;
+            const startZ = z * spacing - offset;
+
+            // Exploded Dispersed Radial Vortex Position (flown outward)
+            const dir = new THREE.Vector3(startX, startY, startZ).normalize();
+            const explodeDist = 6 + Math.random() * 12;
+            const explodedPos = new THREE.Vector3(
+              dir.x * explodeDist + (Math.random() - 0.5) * 4,
+              dir.y * explodeDist + (Math.random() - 0.5) * 4,
+              dir.z * explodeDist + (Math.random() - 0.5) * 8
+            );
+
+            // Reassembled Ascended Stellar Configuration
+            const theta = (x * gridSize + y) * (Math.PI / 8);
+            const phi = z * (Math.PI / 4);
+            const reassembledPos = new THREE.Vector3(
+              Math.sin(theta) * Math.cos(phi) * 3.8,
+              Math.sin(phi) * 3.8,
+              Math.cos(theta) * Math.cos(phi) * 3.8
+            );
+
+            mesh.position.set(startX, startY, startZ);
+            transformGroup.add(mesh);
+
+            transformFragments.push({
+              mesh,
+              startPos: new THREE.Vector3(startX, startY, startZ),
+              explodedPos: explodedPos,
+              reassembledPos: reassembledPos,
+              rotAxis: new THREE.Vector3(Math.random(), Math.random(), Math.random()).normalize(),
+              rotSpeed: 2 + Math.random() * 4
+            });
+          }
+        }
+      }
+
+      scene.add(transformGroup);
+    }
+
+    // ==========================================================================
+    // 11. SCENE 05 — THE RELIC SANCTUARY (INTERACTIVE) (Z ~ -185)
+    // ==========================================================================
+    function createScene05_Relics() {
+      relicsGroup = new THREE.Group();
+      relicsGroup.position.set(0, 0, -185);
+
+      const relicConfigs = [
+        {
+          id: 'chronos',
+          title: 'Chronos Gyroscope',
+          badge: 'Temporal Engine · Alpha',
+          desc: 'An intricate celestial astrolabe calibrated to warp local gravity fields and bend temporal light corridors.',
+          stat1: '432.8 Hz',
+          stat2: '99.4%',
+          pos: new THREE.Vector3(-6.5, 1.8, 0),
+          color: 0xe5b95c, // Gold
+          build: (grp) => {
+            const r1 = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.08, 16, 40), new THREE.MeshStandardMaterial({ color: 0xe5b95c, metalness: 0.9, roughness: 0.1, emissive: 0xe5b95c, emissiveIntensity: 0.4 }));
+            const r2 = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.06, 16, 40), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.2 }));
+            const core = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshStandardMaterial({ color: 0xe5b95c, emissive: 0xe5b95c, emissiveIntensity: 1.2 }));
+            grp.add(r1); grp.add(r2); grp.add(core);
+            grp.userData.innerRings = [r1, r2, core];
+          }
+        },
+        {
+          id: 'aether',
+          title: 'Aether Prism Core',
+          badge: 'Refraction Matrix · Beta',
+          desc: 'Crystalline lattice composed of pure condensed starlight, splitting cosmic photons into coherent dimensional bridges.',
+          stat1: '780.2 nm',
+          stat2: '100%',
+          pos: new THREE.Vector3(0, 2.2, 0),
+          color: 0x4ff8d2, // Electric Cyan
+          build: (grp) => {
+            const prismGeo = new THREE.OctahedronGeometry(1.3, 0);
+            const prismMat = new THREE.MeshPhysicalMaterial({
+              color: 0x0a2638,
+              emissive: 0x4ff8d2,
+              emissiveIntensity: 0.8,
+              metalness: 0.9,
+              roughness: 0.1,
+              wireframe: false
+            });
+            const prism = new THREE.Mesh(prismGeo, prismMat);
+            const halo = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.04, 16, 48), new THREE.MeshBasicMaterial({ color: 0x4ff8d2, wireframe: true }));
+            grp.add(prism); grp.add(halo);
+            grp.userData.innerRings = [prism, halo];
+          }
+        },
+        {
+          id: 'resonance',
+          title: 'Resonance Torus',
+          badge: 'Acoustic Waveguide · Gamma',
+          desc: 'Harmonic oscillator generating zero-point acoustic resonance, synchronizing thought waveforms with planetary ley lines.',
+          stat1: '528.0 Hz',
+          stat2: '98.1%',
+          pos: new THREE.Vector3(6.5, 1.8, 0),
+          color: 0x38ef7d, // Emerald
+          build: (grp) => {
+            const knotGeo = new THREE.TorusKnotGeometry(1.0, 0.22, 64, 16, 2, 3);
+            const knotMat = new THREE.MeshStandardMaterial({
+              color: 0x052e16,
+              emissive: 0x38ef7d,
+              emissiveIntensity: 0.6,
+              metalness: 0.85,
+              roughness: 0.2
+            });
+            const knot = new THREE.Mesh(knotGeo, knotMat);
+            grp.add(knot);
+            grp.userData.innerRings = [knot];
+          }
+        }
+      ];
+
+      relicConfigs.forEach((cfg) => {
+        const relicHolder = new THREE.Group();
+        relicHolder.position.copy(cfg.pos);
+
+        // Pedestal Column Beneath
+        const pedGeo = new THREE.CylinderGeometry(1.0, 1.4, 3.2, 8);
+        const pedMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 });
+        const ped = new THREE.Mesh(pedGeo, pedMat);
+        ped.position.y = -2.2;
+        relicHolder.add(ped);
+
+        // Glowing Rune Base Ring
+        const baseRing = new THREE.Mesh(new THREE.RingGeometry(1.3, 1.7, 32), new THREE.MeshBasicMaterial({ color: cfg.color, side: THREE.DoubleSide, transparent: true, opacity: 0.4 }));
+        baseRing.rotation.x = -Math.PI / 2;
+        baseRing.position.y = -0.58;
+        relicHolder.add(baseRing);
+
+        // Invisible Raycast Hitbox
+        const hitBoxGeo = new THREE.SphereGeometry(2.2, 12, 12);
+        const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
+        const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
+        relicHolder.add(hitBox);
+
+        // Build Visual Geometry
+        cfg.build(relicHolder);
+
+        // Metadata for interaction
+        relicHolder.userData = {
+          ...cfg,
+          hitBox: hitBox,
+          baseScale: 1.0,
+          currentScale: 1.0,
+          hovered: false,
+          baseY: cfg.pos.y
+        };
+
+        relicsGroup.add(relicHolder);
+        interactiveRelics.push(relicHolder);
+      });
+
+      scene.add(relicsGroup);
+    }
+
+    // ==========================================================================
+    // 12. SCENE 06 — CINEMATIC WARP SPEED FLIGHT (Z ~ -195 to -270)
+    // ==========================================================================
+    function createScene06_WarpFlight() {
+      warpGroup = new THREE.Group();
+      warpGroup.position.set(0, 0, -230);
+
+      // 600 High-Velocity Light Streaks using InstancedMesh
+      const streakCount = STATE.isMobile ? 350 : 750;
+      const streakGeo = new THREE.CylinderGeometry(0.04, 0.04, 8, 5);
+      streakGeo.rotateX(Math.PI / 2); // Stretch along z-axis
+
+      const streakMat = new THREE.MeshBasicMaterial({
+        color: 0x4ff8d2,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending
+      });
+
+      warpStreaksMesh = new THREE.InstancedMesh(streakGeo, streakMat, streakCount);
+      const dummy = new THREE.Object3D();
+
+      for (let i = 0; i < streakCount; i++) {
+        const radius = 2.5 + Math.random() * 22;
+        const angle = Math.random() * Math.PI * 2;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        const z = (Math.random() - 0.5) * 110;
+
+        dummy.position.set(x, y, z);
+        const scaleLen = 1 + Math.random() * 3;
+        dummy.scale.set(1, 1, scaleLen);
+        dummy.updateMatrix();
+
+        warpStreaksMesh.setMatrixAt(i, dummy.matrix);
+      }
+
+      warpStreaksMesh.instanceMatrix.needsUpdate = true;
+      warpGroup.add(warpStreaksMesh);
+
+      scene.add(warpGroup);
+    }
+
+    // ==========================================================================
+    // 13. SCENE 07 — THE FINAL ETERNAL MONOLITH (Z ~ -345)
+    // ==========================================================================
+    let monolithPillar, monolithHalo;
+
+    function createScene07_Monolith() {
+      monolithGroup = new THREE.Group();
+      monolithGroup.position.set(0, 0, -345);
+
+      // Giant Obsidian Monolith
+      const monoGeo = new THREE.BoxGeometry(6.5, 34, 3.2);
+      const monoMat = new THREE.MeshStandardMaterial({
+        color: 0x05080e,
+        metalness: 0.95,
+        roughness: 0.1,
+        emissive: 0x112233,
+        emissiveIntensity: 0.3
+      });
+      monolithPillar = new THREE.Mesh(monoGeo, monoMat);
+      monolithPillar.position.y = 12;
+      monolithGroup.add(monolithPillar);
+
+      // Reflective Cosmic Pool Floor
+      const poolGeo = new THREE.PlaneGeometry(60, 60);
+      const poolMat = new THREE.MeshStandardMaterial({
+        color: 0x030508,
+        metalness: 0.98,
+        roughness: 0.15
+      });
+      const pool = new THREE.Mesh(poolGeo, poolMat);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.y = -4.5;
+      monolithGroup.add(pool);
+
+      // Giant Halo Ring Behind Monolith
+      const haloGeo = new THREE.TorusGeometry(12, 0.25, 16, 80);
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: 0x4ff8d2,
+        transparent: true,
+        opacity: 0.6,
+        wireframe: true
+      });
+      monolithHalo = new THREE.Mesh(haloGeo, haloMat);
+      monolithHalo.position.set(0, 16, -4);
+      monolithGroup.add(monolithHalo);
+
+      // Overhead Volumetric Celestial Spotlight
+      const topSpot = new THREE.SpotLight(0x4ff8d2, 6, 60, Math.PI / 4, 0.4);
+      topSpot.position.set(0, 36, 10);
+      topSpot.target = monolithPillar;
+      monolithGroup.add(topSpot);
+
+      scene.add(monolithGroup);
+    }
+
+    // ==========================================================================
+    // 14. SCROLL ENGINE & NARRATIVE CARD CHOREOGRAPHY
+    // ==========================================================================
+    const narrativeCards = [
+      { id: 'card-scene-1', range: [0.00, 0.16] },
+      { id: 'card-scene-2', range: [0.18, 0.35] },
+      { id: 'card-scene-3', range: [0.38, 0.53] },
+      { id: 'card-scene-4', range: [0.55, 0.70] },
+      { id: 'card-scene-5', range: [0.72, 0.84] },
+      { id: 'card-scene-6', range: [0.86, 0.94] },
+      { id: 'card-scene-7', range: [0.95, 1.00] }
+    ];
+
+    const chapterTitles = [
+      '01 / PORTAL',
+      '02 / REALM',
+      '03 / SENTINEL',
+      '04 / METAMORPHOSIS',
+      '05 / SANCTUARY',
+      '06 / WARP',
+      '07 / MONOLITH'
+    ];
+
+    function updateScrollProgress() {
+      // Calculate scroll progress from native scrollbar
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (maxScroll > 0) {
+        const computed = window.scrollY / maxScroll;
+        if (Math.abs(computed - STATE.targetProgress) > 0.008) {
+          STATE.targetProgress = Math.max(0, Math.min(1, computed));
+        }
+      }
+    }
+
+    window.addEventListener('scroll', updateScrollProgress, { passive: true });
+
+    // Universal Direct Wheel Handler - Instant response when user scrolls mouse wheel down
+    function handleWheelScroll(e) {
+      dismissPreloader();
+
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) dy *= 33;  // Lines
+      else if (e.deltaMode === 2) dy *= 100; // Pages
+
+      // Clamp delta per tick to keep pacing graceful
+      dy = Math.max(-120, Math.min(120, dy));
+
+      // Scroll sensitivity
+      const scrollStep = (dy / 1000) * 0.055;
+      STATE.targetProgress = Math.max(0, Math.min(1, STATE.targetProgress + scrollStep));
+
+      // Sync native scroll position
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (maxScroll > 0) {
+        window.scrollTo({
+          top: STATE.targetProgress * maxScroll,
+          behavior: 'auto'
+        });
+      }
+    }
+
+    window.addEventListener('wheel', handleWheelScroll, { passive: true });
+    document.addEventListener('wheel', handleWheelScroll, { passive: true });
+
+    // Keyboard Arrow navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+        dismissPreloader();
+        STATE.targetProgress = Math.max(0, Math.min(1, STATE.targetProgress + 0.04));
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        dismissPreloader();
+        STATE.targetProgress = Math.max(0, Math.min(1, STATE.targetProgress - 0.04));
+      }
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (maxScroll > 0) {
+        window.scrollTo({ top: STATE.targetProgress * maxScroll, behavior: 'auto' });
+      }
+    });
+
+    function updateNarrativeUI(progress) {
+      // Update Bottom Progress Bar
+      const pct = Math.round(progress * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-percent').textContent = pct + '%';
+
+      // Find current scene index
+      let currentIdx = 0;
+      narrativeCards.forEach((item, idx) => {
+        const card = document.getElementById(item.id);
+        if (progress >= item.range[0] && progress <= item.range[1]) {
+          card.classList.add('visible');
+          currentIdx = idx;
+        } else {
+          card.classList.remove('visible');
+        }
+      });
+
+      // Update Chapter Label
+      document.getElementById('chapter-label').textContent = chapterTitles[currentIdx] || '';
+
+      // Update Top Nav Buttons
+      const navBtns = document.querySelectorAll('.chapter-btn');
+      navBtns.forEach((btn, idx) => {
+        if (idx === currentIdx) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      // Notify audio engine
+      sound.updateScrollFilter(progress);
+    }
+
+    // ==========================================================================
+    // 15. INTERACTION & RAYCASTING (Scene 05)
+    // ==========================================================================
+    const hoverHint = document.getElementById('hover-hint');
+    const relicModal = document.getElementById('relic-modal');
+
+    function onMouseMove(event) {
+      STATE.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      STATE.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      // Mouse Parallax calculation
+      STATE.mouseParallax.x = STATE.mouse.x * 1.5;
+      STATE.mouseParallax.y = STATE.mouse.y * 1.0;
+
+      // Update hover tooltip position
+      hoverHint.style.left = event.clientX + 'px';
+      hoverHint.style.top = event.clientY + 'px';
+
+      // Raycast if near Relic scene (progress roughly 0.70 to 0.85)
+      if (STATE.scrollProgress > 0.68 && STATE.scrollProgress < 0.86 && !STATE.inspectingRelic) {
+        checkRelicHover();
+      } else {
+        if (STATE.hoveredRelic) {
+          setRelicHoverState(STATE.hoveredRelic, false);
+          STATE.hoveredRelic = null;
+        }
+        hoverHint.classList.remove('active');
+        document.body.style.cursor = 'default';
+      }
+    }
+
+    function checkRelicHover() {
+      raycaster.setFromCamera(STATE.mouse, camera);
+      const hitboxes = interactiveRelics.map(r => r.userData.hitBox);
+      const intersects = raycaster.intersectObjects(hitboxes);
+
+      if (intersects.length > 0) {
+        const hitParent = intersects[0].object.parent;
+        if (STATE.hoveredRelic !== hitParent) {
+          if (STATE.hoveredRelic) setRelicHoverState(STATE.hoveredRelic, false);
+          STATE.hoveredRelic = hitParent;
+          setRelicHoverState(hitParent, true);
+          sound.playPing(960, 0.15);
+        }
+        hoverHint.classList.add('active');
+        document.body.style.cursor = 'pointer';
+      } else {
+        if (STATE.hoveredRelic) {
+          setRelicHoverState(STATE.hoveredRelic, false);
+          STATE.hoveredRelic = null;
+        }
+        hoverHint.classList.remove('active');
+        document.body.style.cursor = 'default';
+      }
+    }
+
+    function setRelicHoverState(relicGroup, isHovered) {
+      relicGroup.userData.hovered = isHovered;
+      relicGroup.userData.targetScale = isHovered ? 1.25 : 1.0;
+    }
+
+    function onClick(event) {
+      if (STATE.hoveredRelic && !STATE.inspectingRelic) {
+        inspectRelic(STATE.hoveredRelic);
+      }
+    }
+
+    function inspectRelic(relicGroup) {
+      STATE.inspectingRelic = true;
+      const data = relicGroup.userData;
+
+      // Populate Modal Content
+      document.getElementById('modal-badge').textContent = data.badge;
+      document.getElementById('modal-title').textContent = data.title;
+      document.getElementById('modal-desc').textContent = data.desc;
+      document.getElementById('modal-stat1').textContent = data.stat1;
+      document.getElementById('modal-stat2').textContent = data.stat2;
+
+      relicModal.classList.add('active');
+      hoverHint.classList.remove('active');
+      sound.playChord([523.25, 659.25, 783.99], 1.0);
+    }
+
+    document.getElementById('modal-close-btn').addEventListener('click', () => {
+      STATE.inspectingRelic = false;
+      relicModal.classList.remove('active');
+      sound.playPing(440, 0.12);
+    });
+
+    document.getElementById('modal-action-btn').addEventListener('click', () => {
+      sound.playChord([659.25, 830.61, 987.77, 1318.51], 1.8);
+      const btn = document.getElementById('modal-action-btn');
+      btn.textContent = 'Harmonics Aligned!';
+      setTimeout(() => { btn.textContent = 'Trigger Harmonics'; }, 2000);
+    });
+
+    // ==========================================================================
+    // 16. PRELOADER DISMISS & MOBILE TOUCH & GESTURE INTERPOLATION
+    // ==========================================================================
+    let preloaderDismissed = false;
+    function dismissPreloader() {
+      if (preloaderDismissed) return;
+      preloaderDismissed = true;
+      const preloader = document.getElementById('preloader');
+      if (preloader) {
+        preloader.classList.add('loaded');
+        setTimeout(() => {
+          preloader.style.display = 'none';
+        }, 700);
+      }
+      try {
+        sound.init();
+      } catch (err) {}
+    }
+
+    function setupTouchScroll() {
+      let touchStartY = 0;
+      window.addEventListener('touchstart', (e) => {
+        dismissPreloader();
+        if (e.touches.length === 1) touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        dismissPreloader();
+        if (e.touches.length === 1) {
+          const deltaY = touchStartY - e.touches[0].clientY;
+          touchStartY = e.touches[0].clientY;
+          // Direct progress increment on mobile swipe
+          const touchStep = (deltaY / (window.innerHeight || 800)) * 0.7;
+          STATE.targetProgress = Math.max(0, Math.min(1, STATE.targetProgress + touchStep));
+          const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+          if (maxScroll > 0) {
+            window.scrollTo({ top: STATE.targetProgress * maxScroll, behavior: 'auto' });
+          }
+        }
+      }, { passive: true });
+    }
+
+    // ==========================================================================
+    // 17. UI EVENT HANDLERS (Top Nav, Audio, Replay, Free Orbit)
+    // ==========================================================================
+    // Top Nav buttons jump to exact scroll position
+    document.querySelectorAll('.chapter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        dismissPreloader();
+        const targetPct = parseFloat(btn.getAttribute('data-progress'));
+        STATE.targetProgress = targetPct;
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo({ top: targetPct * maxScroll, behavior: 'smooth' });
+        sound.playPing(660, 0.1);
+      });
+    });
+
+    // Sound toggle
+    const soundBtn = document.getElementById('sound-btn');
+    const soundLabel = document.getElementById('sound-label');
+
+    soundBtn.addEventListener('click', () => {
+      const active = sound.toggle();
+      if (active) {
+        soundBtn.classList.remove('sound-muted');
+        soundLabel.textContent = 'Audio On';
+      } else {
+        soundBtn.classList.add('sound-muted');
+        soundLabel.textContent = 'Audio Off';
+      }
+    });
+
+    // Replay Button (resets to start)
+    document.getElementById('replay-btn').addEventListener('click', () => {
+      STATE.targetProgress = 0;
+      sound.playChord([330, 440, 550, 660], 1.5);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // Free Orbit Cam Toggle
+    const freeCamBtn = document.getElementById('freecam-btn');
+    freeCamBtn.addEventListener('click', () => {
+      STATE.freeOrbitMode = !STATE.freeOrbitMode;
+      if (orbitControls) {
+        orbitControls.enabled = STATE.freeOrbitMode;
+        if (STATE.freeOrbitMode && orbitControls.target) {
+          orbitControls.target.set(0, 4.0, -345);
+        }
+      }
+      if (STATE.freeOrbitMode) {
+        freeCamBtn.textContent = 'Lock Cinematic Path';
+        freeCamBtn.style.borderColor = 'var(--color-cyan)';
+        freeCamBtn.style.color = 'var(--color-cyan)';
+      } else {
+        freeCamBtn.textContent = 'Free Orbit Mode';
+        freeCamBtn.style.borderColor = 'var(--color-border)';
+        freeCamBtn.style.color = 'var(--color-text-primary)';
+      }
+      sound.playPing(520, 0.2);
+    });
+
+    // Preloader Dismiss
+    const enterBtn = document.getElementById('enter-btn');
+    const preloaderEl = document.getElementById('preloader');
+
+    enterBtn.addEventListener('click', () => {
+      dismissPreloader();
+      sound.playChord([220, 330, 440, 660], 2.2);
+    });
+
+    if (preloaderEl) {
+      preloaderEl.addEventListener('click', () => {
+        dismissPreloader();
+      });
+    }
+
+    // Fast preload progress, then auto-dismiss
+    let preloadProgress = 0;
+    const preloadInterval = setInterval(() => {
+      preloadProgress += Math.random() * 30 + 20;
+      if (preloadProgress >= 100) {
+        preloadProgress = 100;
+        clearInterval(preloadInterval);
+        document.getElementById('loader-fill').style.width = '100%';
+        enterBtn.classList.add('ready');
+        // Auto-dismiss after 400ms so user can immediately scroll
+        setTimeout(dismissPreloader, 400);
+      } else {
+        document.getElementById('loader-fill').style.width = preloadProgress + '%';
+      }
+    }, 70);
+
+    // Window Resize
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, STATE.isMobile ? 1.5 : 2));
+    }
+
+    // ==========================================================================
+    // 18. MAIN ANIMATION & RENDER LOOP
+    // ==========================================================================
+    const clock = new THREE.Clock();
+    const currentCamPos = new THREE.Vector3();
+    const targetCamPos = new THREE.Vector3();
+    const currentLookAt = new THREE.Vector3();
+    const targetLookAt = new THREE.Vector3();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = clock.getDelta();
+      STATE.time += delta;
+
+      // 1. Smooth Scroll Progress Lerping
+      const lerpFactor = STATE.isMobile ? CONFIG.mobileLerpSpeed : CONFIG.lerpSpeed;
+      STATE.scrollProgress += (STATE.targetProgress - STATE.scrollProgress) * lerpFactor;
+      updateNarrativeUI(STATE.scrollProgress);
+
+      const p = Math.max(0.0001, Math.min(0.9999, STATE.scrollProgress));
+
+      // 2. Camera Choreography via Spline (unless user activated Free Orbit)
+      if (!STATE.freeOrbitMode) {
+        cameraSpline.getPointAt(p, targetCamPos);
+        lookAtSpline.getPointAt(p, targetLookAt);
+
+        // Subtle mouse parallax
+        const px = STATE.mouseParallax.x * (1 - p * 0.5);
+        const py = STATE.mouseParallax.y * (1 - p * 0.5);
+
+        if (!STATE.inspectingRelic) {
+          currentCamPos.lerp(targetCamPos, 0.1);
+          currentLookAt.lerp(targetLookAt, 0.1);
+
+          camera.position.set(
+            currentCamPos.x + px * 0.8,
+            currentCamPos.y + py * 0.5,
+            currentCamPos.z
+          );
+          camera.lookAt(currentLookAt.x + px * 0.3, currentLookAt.y + py * 0.2, currentLookAt.z);
+
+          // Dynamic FOV widening during Scene 06 Warp Flight (progress 0.85 to 0.95)
+          if (p > 0.84 && p < 0.96) {
+            const warpFactor = Math.sin(((p - 0.84) / 0.12) * Math.PI);
+            camera.fov = CONFIG.cameraFov + warpFactor * 26;
+            // Gentle camera roll during warp
+            camera.rotation.z = Math.sin(STATE.time * 6) * 0.04 * warpFactor;
+          } else {
+            camera.fov = CONFIG.cameraFov;
+            camera.rotation.z = 0;
+          }
+          camera.updateProjectionMatrix();
+        } else if (STATE.hoveredRelic) {
+          // Focus in on inspected relic
+          const relicWorldPos = new THREE.Vector3();
+          STATE.hoveredRelic.getWorldPosition(relicWorldPos);
+          const focusPos = relicWorldPos.clone().add(new THREE.Vector3(0, 0.5, 4.5));
+          camera.position.lerp(focusPos, 0.08);
+          camera.lookAt(relicWorldPos);
+        }
+      } else {
+        if (orbitControls && typeof orbitControls.update === 'function') {
+          orbitControls.update();
+        }
+      }
+
+      // 3. Scene 01: Portal Animation
+      if (portalGroup) {
+        portalRings[0].rotation.z += 0.008;
+        portalRings[1].rotation.x += 0.012;
+        portalRings[2].rotation.y += 0.018;
+
+        portalCore.rotation.x += 0.01;
+        portalCore.rotation.y += 0.015;
+
+        // Unfold portal scale as scroll advances towards 0.12
+        if (p < 0.16) {
+          const openFactor = Math.min(1, p / 0.12);
+          portalHorizonDisc.scale.setScalar(1 + openFactor * 1.5);
+          portalHorizonDisc.material.opacity = 0.05 + openFactor * 0.35;
+          portalRings[2].rotation.z += openFactor * 0.1;
+        }
+      }
+
+      // 4. Scene 02: World Floating Islands Bobbing
+      floatingMonoliths.forEach(item => {
+        item.mesh.position.y = item.baseY + Math.sin(STATE.time * item.speed) * 0.4;
+      });
+
+      // 5. Scene 03: Sentinel Cybernetic Animation
+      if (sentinelGroup) {
+        sentinelHaloRing.rotation.z += 0.01;
+        sentinelCoreMesh.rotation.y += 0.02;
+        sentinelCoreMesh.rotation.z += 0.015;
+        // Breathing motion
+        sentinelGroup.position.y = Math.sin(STATE.time * 1.8) * 0.15;
+        // Firefly orbital rotation
+        sentinelParticles.rotation.y += 0.004;
+      }
+
+      // 6. Scene 04: Geometric Transformation Engine (Driven by Scroll Progress!)
+      // Range: 0.52 to 0.70
+      if (transformFragments.length > 0) {
+        let tFactor = 0;
+        if (p >= 0.50 && p <= 0.68) {
+          tFactor = (p - 0.50) / 0.18; // 0 (assembled) -> 0.5 (dispersed) -> 1.0 (ascended)
+        } else if (p > 0.68) {
+          tFactor = 1.0;
+        }
+
+        transformFragments.forEach(frag => {
+          let targetX, targetY, targetZ;
+          if (tFactor < 0.5) {
+            // Exploding outwards from startPos to explodedPos
+            const localT = tFactor * 2; // 0 to 1
+            targetX = THREE.MathUtils.lerp(frag.startPos.x, frag.explodedPos.x, localT);
+            targetY = THREE.MathUtils.lerp(frag.startPos.y, frag.explodedPos.y, localT);
+            targetZ = THREE.MathUtils.lerp(frag.startPos.z, frag.explodedPos.z, localT);
+          } else {
+            // Reassembling inwards from explodedPos to reassembledPos
+            const localT = (tFactor - 0.5) * 2; // 0 to 1
+            targetX = THREE.MathUtils.lerp(frag.explodedPos.x, frag.reassembledPos.x, localT);
+            targetY = THREE.MathUtils.lerp(frag.explodedPos.y, frag.reassembledPos.y, localT);
+            targetZ = THREE.MathUtils.lerp(frag.explodedPos.z, frag.reassembledPos.z, localT);
+          }
+
+          frag.mesh.position.set(targetX, targetY, targetZ);
+          frag.mesh.rotation.x += 0.01 * frag.rotSpeed;
+          frag.mesh.rotation.y += 0.012 * frag.rotSpeed;
+        });
+
+        transformGroup.rotation.y = STATE.time * 0.2;
+      }
+
+      // 7. Scene 05: Relics Animation & Hover Scale Lerping
+      interactiveRelics.forEach(relic => {
+        // Idle levitation
+        relic.position.y = relic.userData.baseY + Math.sin(STATE.time * 2 + relic.position.x) * 0.2;
+        // Inner ring rotation
+        if (relic.userData.innerRings) {
+          relic.userData.innerRings.forEach((r, idx) => {
+            r.rotation.y += 0.015 * (idx + 1);
+            r.rotation.x += 0.01 * (idx + 1);
+          });
+        }
+        // Smooth hover scale
+        const tScale = relic.userData.targetScale || 1.0;
+        relic.userData.currentScale += (tScale - relic.userData.currentScale) * 0.1;
+        relic.scale.setScalar(relic.userData.currentScale);
+      });
+
+      // 8. Scene 06: Warp Streaks Motion
+      if (warpStreaksMesh && p > 0.78 && p < 0.98) {
+        warpStreaksMesh.rotation.z += 0.02;
+      }
+
+      // 9. Scene 07: Monolith Halo Glow
+      if (monolithHalo) {
+        monolithHalo.rotation.z -= 0.005;
+      }
+
+      // 10. Cosmic Particles Slow Drift
+      if (cosmicParticles) {
+        cosmicParticles.rotation.y = STATE.time * 0.01;
+      }
+
+      // Render Scene
+      renderer.render(scene, camera);
+    }
+
+    // ==========================================================================
+    // 19. BOOTSTRAP ON LOAD
+    // ==========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      initThree();
+      animate();
+    });
+  </script>
+</body>
+</html>

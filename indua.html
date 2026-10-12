@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đại Trận Bát Quái 3D - Three.js</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #02050a;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+
+    #webgl-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Giao diện HUD bán trong suốt hiện đại */
+    #hud-overlay {
+      position: absolute;
+      top: 18px;
+      left: 20px;
+      z-index: 10;
+      color: rgba(220, 245, 255, 0.95);
+      pointer-events: none;
+      text-shadow: 0 0 12px rgba(0, 229, 255, 0.8);
+    }
+
+    .hud-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      background: linear-gradient(90deg, #00f0ff, #fff, #ffb700);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hud-subtitle {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: rgba(180, 225, 245, 0.75);
+    }
+
+    /* Thanh hiển thị trạng thái phân tách khi lăn chuột */
+    #hud-expansion-meter {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      background: rgba(3, 15, 28, 0.7);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      border-radius: 8px;
+      padding: 10px 14px;
+      backdrop-filter: blur(10px);
+      color: #9fe9ff;
+      font-size: 11px;
+      letter-spacing: 1px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 220px;
+    }
+
+    .meter-label {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+    }
+
+    .meter-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(0, 50, 80, 0.6);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 229, 255, 0.25);
+    }
+
+    .meter-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #00f0ff, #ffbb00);
+      box-shadow: 0 0 8px #00f0ff;
+      transition: width 0.1s ease;
+    }
+
+    /* Bảng điều khiển góc phải dưới */
+    #hud-controls {
+      position: absolute;
+      bottom: 18px;
+      right: 20px;
+      z-index: 10;
+      background: rgba(3, 15, 28, 0.75);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      border-radius: 8px;
+      padding: 10px 14px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: #a8d5e5;
+      font-size: 12px;
+    }
+
+    .hud-btn {
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.4);
+      color: #d8f7ff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      letter-spacing: 1px;
+      font-weight: 600;
+      transition: all 0.25s ease;
+    }
+
+    .hud-btn:hover {
+      background: rgba(0, 229, 255, 0.35);
+      border-color: #00f0ff;
+      box-shadow: 0 0 14px rgba(0, 229, 255, 0.6);
+      color: #fff;
+    }
+
+    /* Hướng dẫn góc trái dưới */
+    #hud-tips {
+      position: absolute;
+      bottom: 18px;
+      left: 20px;
+      z-index: 10;
+      font-size: 11px;
+      color: rgba(140, 195, 220, 0.7);
+      pointer-events: none;
+      line-height: 1.7;
+    }
+
+    .highlight-tip {
+      color: #ffd043;
+      font-weight: 600;
+    }
+  </style>
+
+  <!-- Import Three.js và OrbitControls qua CDN ES Modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- Khung hiển thị WebGL -->
+  <div id="webgl-container"></div>
+
+  <!-- HUD Tiêu đề -->
+  <div id="hud-overlay">
+    <div class="hud-title">VẠN CỔ BÁT QUÁI ĐẠI TRẬN</div>
+    <div class="hud-subtitle">HỖN THIÊN THÁI CỰC • LỤC THẬP TỨ QUÁI • THẬP NHỊ ĐỊA CHI</div>
+  </div>
+
+  <!-- Đồng hồ hiển thị độ tách tầng khi lăn chuột -->
+  <div id="hud-expansion-meter">
+    <div class="meter-label">
+      <span>ĐỘ PHÂN TÁCH TẦNG 3D:</span>
+      <span id="meter-val">0%</span>
+    </div>
+    <div class="meter-bar-bg">
+      <div id="meter-fill" class="meter-bar-fill"></div>
+    </div>
+    <div style="font-size: 10px; color: rgba(180, 220, 240, 0.6);">
+      Lăn chuột xa: TÁCH TẦNG | Lăn chuột gần: THU TẬP
+    </div>
+  </div>
+
+  <!-- Hướng dẫn điều khiển chuột -->
+  <div id="hud-tips">
+    <div>• <span class="highlight-tip">Lăn chuột (Scroll Wheel)</span>: Phóng to/thu nhỏ & <b>Tách chữ/tầng 3D</b></div>
+    <div>• Chuột trái: Xoay 360° tự do</div>
+    <div>• Chuột phải: Di chuyển góc nhìn (Pan)</div>
+  </div>
+
+  <!-- Nút tương tác nhanh -->
+  <div id="hud-controls">
+    <span>Tốc độ:</span>
+    <button class="hud-btn" id="btn-speed">1.0x</button>
+    <button class="hud-btn" id="btn-theme">Màu Sắc</button>
+    <button class="hud-btn" id="btn-auto-expand">Tự Động Tách: TẮT</button>
+    <button class="hud-btn" id="btn-reset">Đặt Lại</button>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    /* ==========================================================================
+       1. CẤU HÌNH KHỞI TẠO THREE.JS VÀ SCENE
+       ========================================================================== */
+    const container = document.getElementById('webgl-container');
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x02050a, 0.007);
+
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1200
+    );
+    // Vị trí camera ban đầu
+    camera.position.set(0, 36, 48);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance',
+      alpha: false
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.35;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 10;
+    controls.maxDistance = 160;
+    controls.maxPolarAngle = Math.PI / 2 + 0.18;
+
+    /* ==========================================================================
+       2. HỆ THỐNG ÁNH SÁNG CHIỀU SÂU
+       ========================================================================== */
+    const ambientLight = new THREE.AmbientLight(0x10283b, 2.2);
+    scene.add(ambientLight);
+
+    const coreLight = new THREE.PointLight(0x00f0ff, 6.0, 70, 1.2);
+    coreLight.position.set(0, 2, 0);
+    scene.add(coreLight);
+
+    const topLight = new THREE.DirectionalLight(0xd4f4ff, 2.2);
+    topLight.position.set(20, 50, 30);
+    scene.add(topLight);
+
+    const bottomLight = new THREE.PointLight(0x0066ff, 4.0, 60, 1.4);
+    bottomLight.position.set(0, -10, 0);
+    scene.add(bottomLight);
+
+    /* ==========================================================================
+       3. HÀM TẠO TEXTURE DÀY ĐẶC KÝ TỰ BẰNG CANVAS (SIÊU MƯỢT & SẮC NÉT)
+       ========================================================================== */
+
+    // 3.1 Vẽ đĩa Âm Dương (Thái Cực Đồ)
+    function createYinYangTexture(size = 1024) {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const r = size / 2;
+      const center = r;
+
+      ctx.clearRect(0, 0, size, size);
+
+      // Nửa Dương
+      ctx.beginPath();
+      ctx.arc(center, center, r - 12, -Math.PI / 2, Math.PI / 2, false);
+      ctx.fillStyle = '#ebfbff';
+      ctx.fill();
+
+      // Nửa Âm
+      ctx.beginPath();
+      ctx.arc(center, center, r - 12, Math.PI / 2, -Math.PI / 2, false);
+      ctx.fillStyle = '#05111d';
+      ctx.fill();
+
+      // Đường bán nguyệt phụ Dương
+      ctx.beginPath();
+      ctx.arc(center, center - (r - 12) / 2, (r - 12) / 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#ebfbff';
+      ctx.fill();
+
+      // Đường bán nguyệt phụ Âm
+      ctx.beginPath();
+      ctx.arc(center, center + (r - 12) / 2, (r - 12) / 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#05111d';
+      ctx.fill();
+
+      // Mắt Âm
+      ctx.beginPath();
+      ctx.arc(center, center - (r - 12) / 2, (r - 12) / 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#05111d';
+      ctx.fill();
+
+      // Mắt Dương
+      ctx.beginPath();
+      ctx.arc(center, center + (r - 12) / 2, (r - 12) / 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#ebfbff';
+      ctx.fill();
+
+      // Viền hào quang
+      ctx.beginPath();
+      ctx.arc(center, center, r - 12, 0, Math.PI * 2);
+      ctx.lineWidth = 16;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 24;
+      ctx.stroke();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.anisotropy = 8;
+      return texture;
+    }
+
+    // 3.2 Vẽ vòng chữ dày đặc với nhiều lớp đồng tâm, la bàn, vạch chia
+    function createDenseRuneRingTexture({
+      size = 2048,
+      symbols = [],
+      ringRadii = [0.72, 0.88],
+      showTicks = true,
+      tickCount = 64,
+      font = '600 42px "Microsoft YaHei", "PingFang SC", sans-serif',
+      color = '#00e5ff',
+      innerLines = 2
+    }) {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const center = size / 2;
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+
+      // Các đường viền chính
+      ringRadii.forEach(ratio => {
+        ctx.beginPath();
+        ctx.arc(center, center, center * ratio, 0, Math.PI * 2);
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      });
+
+      // Các đường viền phụ mỏng chạy song song tạo chiều sâu
+      for (let j = 1; j <= innerLines; j++) {
+        const subRatio = ringRadii[0] + ((ringRadii[1] - ringRadii[0]) * (j / (innerLines + 1)));
+        ctx.beginPath();
+        ctx.arc(center, center, center * subRatio, 0, Math.PI * 2);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Vạch chia độ la bàn (ticks)
+      if (showTicks && tickCount > 0) {
+        for (let i = 0; i < tickCount; i++) {
+          const angle = (i / tickCount) * Math.PI * 2;
+          const isMajor = i % 8 === 0;
+          const isSemi = i % 4 === 0;
+          const len = isMajor ? 28 : (isSemi ? 18 : 10);
+          const rInner = center * ringRadii[0];
+
+          const x1 = center + Math.cos(angle) * (rInner - 3);
+          const y1 = center + Math.sin(angle) * (rInner - 3);
+          const x2 = center + Math.cos(angle) * (rInner - 3 - len);
+          const y2 = center + Math.sin(angle) * (rInner - 3 - len);
+
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.lineWidth = isMajor ? 4 : (isSemi ? 2.5 : 1.5);
+          ctx.stroke();
+        }
+      }
+
+      // Vẽ toàn bộ chữ Hán dày đặc rải đều theo chu vi
+      if (symbols && symbols.length > 0) {
+        ctx.font = font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const textRadius = center * ((ringRadii[0] + ringRadii[1]) / 2);
+
+        for (let i = 0; i < symbols.length; i++) {
+          const angle = (i / symbols.length) * Math.PI * 2 - Math.PI / 2;
+          ctx.save();
+          ctx.translate(center, center);
+          ctx.rotate(angle + Math.PI / 2);
+          ctx.translate(0, -textRadius);
+          ctx.fillText(symbols[i], 0, 0);
+          ctx.restore();
+        }
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.anisotropy = 8;
+      return texture;
+    }
+
+    // 3.3 Vẽ cột trụ thần chú (Cylinder Rune Wall Texture)
+    function createCylinderRuneTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 2048;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 12;
+      ctx.font = 'bold 36px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+
+      const scriptures = [
+        '臨兵鬥者皆陣列前行', '天地玄黃宇宙洪荒', '日月盈昃辰宿列張', '寒來暑往秋收冬藏',
+        '乾坤生化陰陽交泰', '道法自然虛極靜篤', '萬物並作吾以觀復', '夫物芸芸各復歸其根',
+        '九天玄剎化為神雷', '煌煌天威以劍引之', '太極合一神明洞達', '八荒六合萬法歸真'
+      ];
+
+      const rows = 4;
+      const cols = 24;
+      for (let r = 0; r < rows; r++) {
+        const y = 80 + r * 105;
+        for (let c = 0; c < cols; c++) {
+          const textGroup = scriptures[(r + c) % scriptures.length];
+          const char = textGroup[c % textGroup.length];
+          const x = (c / cols) * canvas.width + (canvas.width / cols / 2);
+          ctx.fillText(char, x, y);
+        }
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      return texture;
+    }
+
+    /* ==========================================================================
+       4. DỮ LIỆU CHỮ HÁN DÀY ĐẶC (KINH DỊCH, THIÊN CAN ĐỊA CHI, 24 TIẾT KHÍ, 64 QUẺ)
+       ========================================================================== */
+
+    // 10 Thiên Can + 12 Địa Chi
+    const canChiSymbols = [
+      '甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸',
+      '子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'
+    ];
+
+    // 24 Tiết Khí
+    const tietKhi24 = [
+      '立春', '雨水', '驚蟄', '春分', '清明', '穀雨',
+      '立夏', '小滿', '芒種', '夏至', '小暑', '大暑',
+      '立秋', '處暑', '白露', '秋分', '寒露', '霜降',
+      '立冬', '小雪', '大雪', '冬至', '小寒', '大寒'
+    ];
+
+    // 64 Quẻ Kinh Dịch
+    const queKinhDich64 = [
+      '乾為天', '坤為地', '水雷屯', '山水蒙', '水天需', '天水訟', '地水師', '水地比',
+      '風天小畜', '天澤履', '地天泰', '天地否', '天火同人', '火天大有', '地山謙', '雷地豫',
+      '澤雷隨', '山風蠱', '地澤臨', '風地觀', '火雷噬嗑', '山火賁', '山地剝', '地雷復',
+      '天雷無妄', '山天大畜', '山雷頤', '澤風大過', '坎為水', '離為火', '澤山咸', '雷風恆',
+      '天山遯', '雷天大壯', '火地晉', '地火明夷', '風火家人', '火澤睽', '水山蹇', '雷水解',
+      '山澤損', '風雷益', '澤天夬', '天風姤', '澤地萃', '地風升', '澤水困', '水風井',
+      '澤火革', '火風鼎', '震為雷', '艮為山', '風山漸', '雷澤歸妹', '雷火豐', '火山旅',
+      '巽為風', '兌為澤', '風水渙', '水澤節', '風澤中孚', '雷山小過', '水火既濟', '火水未濟'
+    ];
+
+    // Bát Môn & Cửu Tinh
+    const batMonCuuTinh = [
+      '休門', '生門', '傷門', '杜門', '景門', '死門', '驚門', '開門',
+      '天蓬', '天芮', '天沖', '天輔', '天禽', '天心', '天柱', '天任', '天英',
+      '青龍', '白虎', '朱雀', '玄武', '勾陳', '騰蛇', '太常', '六合'
+    ];
+
+    // 28 Nhị Thập Bát Tú
+    const sao28Tu = [
+      '角宿', '亢宿', '氐宿', '房宿', '心宿', '尾宿', '箕宿',
+      '斗宿', '牛宿', '女宿', '虛宿', '危宿', '室宿', '壁宿',
+      '奎宿', '婁宿', '胃宿', '昴宿', '畢宿', '觜宿', '參宿',
+      '井宿', '鬼宿', '柳宿', '星宿', '張宿', '翼宿', '軫宿'
+    ];
+
+    /* ==========================================================================
+       5. XÂY DỰNG CÁC TẦNG TRẬN PHÁP 3D VÀ CƠ CHẾ TÁCH TẦNG (SEPARATION)
+       ========================================================================== */
+    const masterGroup = new THREE.Group();
+    scene.add(masterGroup);
+
+    // Mảng lưu trữ tất cả các tầng để xử lý TÁCH RA / THU VÀO khi lăn chuột
+    const separableLayers = [];
+
+    // 5.1 Tâm Thái Cực
+    const taijiGeo = new THREE.CylinderGeometry(4.4, 4.4, 0.45, 64);
+    const taijiTex = createYinYangTexture(1024);
+    const taijiMatTop = new THREE.MeshStandardMaterial({
+      map: taijiTex,
+      roughness: 0.2,
+      metalness: 0.85,
+      emissive: 0x004455,
+      emissiveIntensity: 0.4
+    });
+    const taijiMatSide = new THREE.MeshStandardMaterial({
+      color: 0x051a2e,
+      metalness: 0.9,
+      roughness: 0.3,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 0.3
+    });
+    const taijiMesh = new THREE.Mesh(taijiGeo, [taijiMatSide, taijiMatTop, taijiMatTop]);
+    taijiMesh.position.y = 0.2;
+    masterGroup.add(taijiMesh);
+
+    // Vành phát sáng nhịp tim
+    const coreAuraGeo = new THREE.RingGeometry(4.5, 4.9, 64);
+    const coreAuraMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    });
+    const coreAuraMesh = new THREE.Mesh(coreAuraGeo, coreAuraMat);
+    coreAuraMesh.rotation.x = -Math.PI / 2;
+    coreAuraMesh.position.y = 0.22;
+    masterGroup.add(coreAuraMesh);
+
+    // 5.2 8 Quẻ Bát Quái (Đĩa thẻ bài 3D)
+    const baguaData = [
+      { name: '乾', yao: [1, 1, 1] },
+      { name: '兌', yao: [0, 1, 1] },
+      { name: '離', yao: [1, 0, 1] },
+      { name: '震', yao: [0, 0, 1] },
+      { name: '巽', yao: [1, 1, 0] },
+      { name: '坎', yao: [0, 1, 0] },
+      { name: '艮', yao: [1, 0, 0] },
+      { name: '坤', yao: [0, 0, 0] }
+    ];
+
+    function createBaguaPlate(item) {
+      const group = new THREE.Group();
+
+      const plateGeo = new THREE.BoxGeometry(2.3, 0.18, 3.4);
+      const plateMat = new THREE.MeshStandardMaterial({
+        color: 0x031726,
+        metalness: 0.9,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 0.9
+      });
+      const plateMesh = new THREE.Mesh(plateGeo, plateMat);
+      group.add(plateMesh);
+
+      const edges = new THREE.EdgesGeometry(plateGeo);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: 0x00f0ff,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending
+      });
+      group.add(new THREE.LineSegments(edges, lineMat));
+
+      // Chữ Hán
+      const tCanvas = document.createElement('canvas');
+      tCanvas.width = 256;
+      tCanvas.height = 256;
+      const tCtx = tCanvas.getContext('2d');
+      tCtx.font = 'bold 150px "Microsoft YaHei", sans-serif';
+      tCtx.fillStyle = '#ebfbff';
+      tCtx.textAlign = 'center';
+      tCtx.textBaseline = 'middle';
+      tCtx.shadowColor = '#00f0ff';
+      tCtx.shadowBlur = 24;
+      tCtx.fillText(item.name, 128, 130);
+
+      const charTex = new THREE.CanvasTexture(tCanvas);
+      const charMat = new THREE.MeshBasicMaterial({
+        map: charTex,
+        transparent: true,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      });
+      const charPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), charMat);
+      charPlane.rotation.x = -Math.PI / 2;
+      charPlane.position.set(0, 0.12, -0.7);
+      group.add(charPlane);
+
+      // 3 Hào 3D
+      const yaoMat = new THREE.MeshStandardMaterial({
+        color: 0x82faff,
+        emissive: 0x00c8e6,
+        emissiveIntensity: 0.7,
+        roughness: 0.2
+      });
+
+      const zStart = 0.38;
+      const zGap = 0.42;
+      item.yao.forEach((isYang, idx) => {
+        const zPos = zStart + idx * zGap;
+        if (isYang) {
+          const barMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.2), yaoMat);
+          barMesh.position.set(0, 0.12, zPos);
+          group.add(barMesh);
+        } else {
+          const lBar = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.1, 0.2), yaoMat);
+          lBar.position.set(-0.43, 0.12, zPos);
+          const rBar = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.1, 0.2), yaoMat);
+          rBar.position.set(0.43, 0.12, zPos);
+          group.add(lBar);
+          group.add(rBar);
+        }
+      });
+
+      return group;
+    }
+
+    const baguaRingGroup = new THREE.Group();
+    const baseBaguaRadius = 9.8;
+    const baguaPlates = [];
+
+    baguaData.forEach((item, index) => {
+      const angle = (index / baguaData.length) * Math.PI * 2;
+      const plate = createBaguaPlate(item);
+      plate.position.x = Math.cos(angle) * baseBaguaRadius;
+      plate.position.z = Math.sin(angle) * baseBaguaRadius;
+      plate.rotation.y = -angle + Math.PI / 2;
+      baguaRingGroup.add(plate);
+      baguaPlates.push({ mesh: plate, angle, baseRadius: baseBaguaRadius });
+    });
+    masterGroup.add(baguaRingGroup);
+
+    // Đăng ký tầng 8 Quẻ: khi tách sẽ dâng cao lên trên Y=+3.8 và nở rộng ra ngoài
+    separableLayers.push({
+      group: baguaRingGroup,
+      baseY: 0,
+      targetSeparationY: 3.8,
+      baseScale: 1.0,
+      targetScale: 1.25,
+      rotSpeed: -0.003
+    });
+
+    // 5.3 Hàm tạo các đĩa vòng chữ dày đặc
+    function addRuneLayer({
+      innerR,
+      outerR,
+      texture,
+      rotSpeed,
+      baseY = 0,
+      separationY = 0,
+      separationScale = 1.0,
+      opacity = 0.88
+    }) {
+      const geo = new THREE.RingGeometry(innerR, outerR, 96);
+      const mat = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = baseY;
+
+      masterGroup.add(mesh);
+
+      separableLayers.push({
+        group: mesh,
+        baseY: baseY,
+        targetSeparationY: separationY,
+        baseScale: 1.0,
+        targetScale: separationScale,
+        rotSpeed: rotSpeed
+      });
+
+      return mesh;
+    }
+
+    // TẦNG 1: Thiên Can & Địa Chi (Gần tâm) -> Tách xuống dưới Y = -2.8
+    const ringCanChiTex = createDenseRuneRingTexture({
+      size: 2048,
+      symbols: canChiSymbols,
+      ringRadii: [0.72, 0.88],
+      tickCount: 44,
+      font: 'bold 46px "Microsoft YaHei", sans-serif',
+      color: '#00e5ff',
+      innerLines: 2
+    });
+    addRuneLayer({
+      innerR: 12.0,
+      outerR: 15.6,
+      texture: ringCanChiTex,
+      rotSpeed: 0.003,
+      baseY: 0.04,
+      separationY: -2.8,
+      separationScale: 1.15
+    });
+
+    // TẦNG 2: 24 Tiết Khí -> Tách bay lên cao Y = +7.0
+    const ringTietKhiTex = createDenseRuneRingTexture({
+      size: 2048,
+      symbols: tietKhi24,
+      ringRadii: [0.75, 0.87],
+      tickCount: 72,
+      font: 'bold 38px "Microsoft YaHei", sans-serif',
+      color: '#2ef5ff',
+      innerLines: 2
+    });
+    addRuneLayer({
+      innerR: 16.5,
+      outerR: 20.5,
+      texture: ringTietKhiTex,
+      rotSpeed: -0.0025,
+      baseY: 0.08,
+      separationY: 7.0,
+      separationScale: 1.18
+    });
+
+    // TẦNG 3: 64 Quẻ Kinh Dịch dày đặc -> Tách hạ xuống sâu Y = -6.5
+    const ring64QueTex = createDenseRuneRingTexture({
+      size: 2048,
+      symbols: queKinhDich64,
+      ringRadii: [0.78, 0.88],
+      tickCount: 128,
+      font: 'bold 28px "Microsoft YaHei", sans-serif',
+      color: '#00d5ff',
+      innerLines: 3
+    });
+    addRuneLayer({
+      innerR: 21.2,
+      outerR: 26.2,
+      texture: ring64QueTex,
+      rotSpeed: 0.002,
+      baseY: 0.12,
+      separationY: -6.5,
+      separationScale: 1.2
+    });
+
+    // TẦNG 4: Bát Môn & Cửu Tinh Trận Đồ -> Tách lên cao Y = +10.5
+    const ringBatMonTex = createDenseRuneRingTexture({
+      size: 2048,
+      symbols: batMonCuuTinh,
+      ringRadii: [0.8, 0.9],
+      tickCount: 96,
+      font: 'bold 36px "Microsoft YaHei", sans-serif',
+      color: '#4bfdff',
+      innerLines: 2
+    });
+    addRuneLayer({
+      innerR: 27.0,
+      outerR: 32.2,
+      texture: ringBatMonTex,
+      rotSpeed: -0.0018,
+      baseY: 0.16,
+      separationY: 10.5,
+      separationScale: 1.22
+    });
+
+    // TẦNG 5: Nhị Thập Bát Tú (28 Chòm Sao) Vòng Ngoài Cùng -> Tách xuống Y = -10.0
+    const ring28TuTex = createDenseRuneRingTexture({
+      size: 2048,
+      symbols: sao28Tu,
+      ringRadii: [0.84, 0.94],
+      tickCount: 168,
+      font: 'bold 32px "Microsoft YaHei", sans-serif',
+      color: '#00f6ff',
+      innerLines: 3
+    });
+    addRuneLayer({
+      innerR: 33.0,
+      outerR: 38.5,
+      texture: ring28TuTex,
+      rotSpeed: 0.0012,
+      baseY: 0.2,
+      separationY: -10.0,
+      separationScale: 1.25
+    });
+
+    // 5.4 Vách Trụ Thần Chú 3D Bao Quanh (Cylindrical Rune Barrier Wall)
+    const wallGeo = new THREE.CylinderGeometry(30, 30, 8.5, 64, 1, true);
+    const wallTex = createCylinderRuneTexture();
+    const wallMat = new THREE.MeshBasicMaterial({
+      map: wallTex,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const runeWallMesh = new THREE.Mesh(wallGeo, wallMat);
+    masterGroup.add(runeWallMesh);
+
+    // 5.5 Các vòng cầu Hỗn Thiên Nghi 3D nghiêng đa góc (Armillary Spheres)
+    const armillaryRings = [];
+    function createArmillaryRing(radius, tubeRadius, color, tiltX, tiltZ, speedY, targetSepY) {
+      const geo = new THREE.TorusGeometry(radius, tubeRadius, 16, 120);
+      const mat = new THREE.MeshStandardMaterial({
+        color: color,
+        emissive: color,
+        emissiveIntensity: 0.75,
+        roughness: 0.2,
+        metalness: 0.9
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+
+      const pivot = new THREE.Group();
+      pivot.rotation.x = tiltX;
+      pivot.rotation.z = tiltZ;
+      pivot.add(mesh);
+      masterGroup.add(pivot);
+
+      // Hạt ngọc năng lượng
+      const orbGeo = new THREE.SphereGeometry(tubeRadius * 2.8, 16, 16);
+      const orbMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        blending: THREE.AdditiveBlending
+      });
+      const orbMesh = new THREE.Mesh(orbGeo, orbMat);
+      mesh.add(orbMesh);
+
+      armillaryRings.push({ pivot, mesh, speedY, orbMesh, radius });
+
+      separableLayers.push({
+        group: pivot,
+        baseY: 0,
+        targetSeparationY: targetSepY,
+        baseScale: 1.0,
+        targetScale: 1.15,
+        rotSpeed: 0
+      });
+    }
+
+    createArmillaryRing(15.0, 0.09, 0x00f0ff, Math.PI / 4, 0, 0.007, 4.5);
+    createArmillaryRing(22.5, 0.11, 0x00a8ff, -Math.PI / 5, Math.PI / 6, -0.005, -5.0);
+    createArmillaryRing(31.0, 0.13, 0x4df5ff, Math.PI / 3, -Math.PI / 4, 0.004, 8.0);
+
+    // 5.6 Trường hạt linh khí đa tầng
+    const particleCount = 1000;
+    const pGeo = new THREE.BufferGeometry();
+    const pPos = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+      const radius = 6 + Math.random() * 38;
+      const theta = Math.random() * Math.PI * 2;
+      const y = (Math.random() - 0.5) * 12;
+
+      pPos[i * 3] = Math.cos(theta) * radius;
+      pPos[i * 3 + 1] = y;
+      pPos[i * 3 + 2] = Math.sin(theta) * radius;
+    }
+
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = 64;
+    pCanvas.height = 64;
+    const pCtx = pCanvas.getContext('2d');
+    const grad = pCtx.createRadialGradient(32, 32, 0, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.3, 'rgba(0,229,255,0.85)');
+    grad.addColorStop(1, 'rgba(0,229,255,0)');
+    pCtx.fillStyle = grad;
+    pCtx.fillRect(0, 0, 64, 64);
+
+    const pTex = new THREE.CanvasTexture(pCanvas);
+    const pMat = new THREE.PointsMaterial({
+      size: 0.9,
+      map: pTex,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const particleSystem = new THREE.Points(pGeo, pMat);
+    masterGroup.add(particleSystem);
+
+    // Cột sáng trục tâm
+    const beamGeo = new THREE.CylinderGeometry(0.2, 0.7, 50, 32, 1, true);
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0x00e5ff,
+      transparent: true,
+      opacity: 0.28,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+    masterGroup.add(beamMesh);
+
+    /* ==========================================================================
+       6. CƠ CHẾ LĂN CHUỘT PHÂN TÁCH TẦNG 3D (WHEEL DECONSTRUCTION)
+       ========================================================================== */
+    // currentExpansion: 0.0 (Thu gọn sát nhau) -> 1.0 (Tách tầng 3D toàn diện)
+    let currentExpansion = 0.0;
+    let targetExpansion = 0.0;
+    let autoExpand = false;
+
+    // Lắng nghe sự kiện lăn chuột
+    window.addEventListener('wheel', (e) => {
+      // e.deltaY > 0: Lăn chuột lùi xa (Zoom out) -> TÁCH CHỮ VÀ TẦNG 3D RA
+      // e.deltaY < 0: Lăn chuột lại gần (Zoom in) -> THU GỌN VÀO KHÍT NHAU
+      const step = 0.08;
+      if (e.deltaY > 0) {
+        targetExpansion = Math.min(1.0, targetExpansion + step);
+      } else {
+        targetExpansion = Math.max(0.0, targetExpansion - step);
+      }
+    }, { passive: true });
+
+    // Cập nhật thanh hiển thị độ tách tầng trên HUD
+    const meterFill = document.getElementById('meter-fill');
+    const meterVal = document.getElementById('meter-val');
+
+    /* ==========================================================================
+       7. VÒNG LẶP RENDER VÀ ANIMATION MƯỢT MÀ 60 FPS
+       ========================================================================== */
+    let speedMultiplier = 1.0;
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const elapsed = clock.getElapsedTime() * speedMultiplier;
+
+      // Xử lý chế độ tự động tách tầng nếu bật
+      if (autoExpand) {
+        targetExpansion = 0.5 + 0.5 * Math.sin(elapsed * 1.2);
+      }
+
+      // Nội suy mượt mà (Lerp) độ tách tầng
+      currentExpansion += (targetExpansion - currentExpansion) * 0.08;
+
+      // Cập nhật UI thước đo phân tách
+      const percent = Math.round(currentExpansion * 100);
+      meterFill.style.width = `${percent}%`;
+      meterVal.innerText = `${percent}%`;
+
+      // Cập nhật vị trí Y và Scale của từng tầng theo độ tách
+      separableLayers.forEach(layer => {
+        // Tách theo trục thẳng đứng Y
+        layer.group.position.y = layer.baseY + layer.targetSeparationY * currentExpansion;
+
+        // Tách giãn nở theo mặt phẳng ngang
+        const s = layer.baseScale + (layer.targetScale - layer.baseScale) * currentExpansion;
+        layer.group.scale.set(s, s, s);
+
+        // Xoay vòng tròn
+        if (layer.rotSpeed !== 0) {
+          if (layer.group.isMesh) {
+            layer.group.rotation.z += layer.rotSpeed * speedMultiplier;
+          } else {
+            layer.group.rotation.y += layer.rotSpeed * speedMultiplier;
+          }
+        }
+      });
+
+      // Xoay tổng thể trận pháp chậm rãi
+      masterGroup.rotation.y += 0.0012 * speedMultiplier;
+
+      // Xoay đĩa Âm Dương trung tâm
+      taijiMesh.rotation.y += 0.009 * speedMultiplier;
+
+      // Xoay vách trụ rune
+      wallTex.offset.x += 0.001 * speedMultiplier;
+      runeWallMesh.scale.y = 1.0 + currentExpansion * 1.5;
+
+      // Chuyển động vòng hỗn thiên nghi & hạt ngọc
+      armillaryRings.forEach(arm => {
+        arm.mesh.rotation.z += arm.speedY * speedMultiplier;
+        const orbAngle = elapsed * arm.speedY * 16;
+        arm.orbMesh.position.x = Math.cos(orbAngle) * arm.radius;
+        arm.orbMesh.position.y = Math.sin(orbAngle) * arm.radius;
+      });
+
+      // Nhấp nhô trường hạt
+      particleSystem.rotation.y += 0.001 * speedMultiplier;
+      const positions = particleSystem.geometry.attributes.position.array;
+      for (let i = 1; i < positions.length; i += 3) {
+        positions[i] += Math.sin(elapsed * 2 + i) * 0.015;
+      }
+      particleSystem.geometry.attributes.position.needsUpdate = true;
+
+      // Hiệu ứng nhịp thở lõi
+      const pulse = 1 + Math.sin(elapsed * 2.5) * 0.08;
+      coreAuraMesh.scale.set(pulse, pulse, pulse);
+      coreLight.intensity = 5.0 + Math.sin(elapsed * 3) * 1.8;
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    /* ==========================================================================
+       8. RESPONSIVE KHI THAY ĐỔI KÍCH THƯỚC CỬA SỔ
+       ========================================================================== */
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    }
+    window.addEventListener('resize', onWindowResize, false);
+
+    /* ==========================================================================
+       9. NÚT ĐIỀU KHIỂN GIAO DIỆN
+       ========================================================================== */
+    // Đổi tốc độ
+    const speedBtn = document.getElementById('btn-speed');
+    const speeds = [1.0, 1.8, 0.4, 0.0];
+    let speedIdx = 0;
+    speedBtn.addEventListener('click', () => {
+      speedIdx = (speedIdx + 1) % speeds.length;
+      speedMultiplier = speeds[speedIdx];
+      speedBtn.innerText = speeds[speedIdx] === 0 ? 'Dừng' : `${speeds[speedIdx]}x`;
+    });
+
+    // Bật/Tắt tự động tách tầng thở nhịp
+    const autoExpandBtn = document.getElementById('btn-auto-expand');
+    autoExpandBtn.addEventListener('click', () => {
+      autoExpand = !autoExpand;
+      autoExpandBtn.innerText = autoExpand ? 'Tự Động Tách: BẬT' : 'Tự Động Tách: TẮT';
+      autoExpandBtn.style.color = autoExpand ? '#ffd043' : '#d8f7ff';
+    });
+
+    // Đổi bộ màu
+    const themeBtn = document.getElementById('btn-theme');
+    const themes = [
+      { name: 'Thanh Lam', color: 0x00f0ff, aura: 0x00ffff },
+      { name: 'Hoàng Kim', color: 0xffb700, aura: 0xffcc33 },
+      { name: 'Huyết Hồng', color: 0xff2a55, aura: 0xff3366 },
+      { name: 'U Tím',     color: 0xb444ff, aura: 0xcc66ff }
+    ];
+    let themeIdx = 0;
+    themeBtn.addEventListener('click', () => {
+      themeIdx = (themeIdx + 1) % themes.length;
+      const t = themes[themeIdx];
+      coreLight.color.setHex(t.color);
+      coreAuraMat.color.setHex(t.aura);
+      beamMat.color.setHex(t.color);
+      pMat.color.setHex(t.aura);
+      wallMat.color.setHex(t.color);
+    });
+
+    // Đặt lại góc nhìn và độ tách
+    const resetBtn = document.getElementById('btn-reset');
+    resetBtn.addEventListener('click', () => {
+      controls.reset();
+      camera.position.set(0, 36, 48);
+      controls.target.set(0, 0, 0);
+      targetExpansion = 0.0;
+      autoExpand = false;
+      autoExpandBtn.innerText = 'Tự Động Tách: TẮT';
+      autoExpandBtn.style.color = '#d8f7ff';
+    });
+  </script>
+</body>
+</html>

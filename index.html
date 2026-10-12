@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Web 3D Cinematic Experience</title>
+    <style>
+        /* ==========================================
+           UI & CSS ARCHITECTURE
+           ========================================== */
+        :root {
+            --primary: #ffffff;
+            --bg: #030303;
+            --accent: #5e81ac;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow-x: hidden;
+            overscroll-behavior-y: none;
+        }
+
+        /* 3D Canvas */
+        #webgl-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            outline: none;
+            pointer-events: none; /* Let scroll pass through */
+        }
+
+        /* Scroll Proxy to create scrollable space */
+        #scroll-proxy {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 1000vh; /* 10 screens of scrolling depth */
+            z-index: 0;
+        }
+
+        /* UI Layer */
+        #ui-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+            pointer-events: none; /* Only enable for specific interactive elements */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Cinematic Typography */
+        .cinematic-text {
+            position: absolute;
+            font-size: clamp(2rem, 5vw, 6rem);
+            font-weight: 200;
+            letter-spacing: 0.5em;
+            text-transform: uppercase;
+            text-align: center;
+            opacity: 0; /* Controlled by GSAP */
+            transform: translateY(20px);
+            margin-left: 0.5em; /* Compensate for letter-spacing alignment */
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .subtitle {
+            font-size: clamp(0.8rem, 1.5vw, 1.2rem);
+            letter-spacing: 0.2em;
+            display: block;
+            margin-top: 1rem;
+            color: #aaaaaa;
+        }
+
+        /* Interactive Panel */
+        #info-panel {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%) translateY(50px);
+            background: rgba(10, 10, 10, 0.8);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 2rem;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            opacity: 0;
+            transition: all 0.4s ease;
+            width: 80%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        #info-panel.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Replay Button */
+        #btn-replay {
+            pointer-events: auto;
+            margin-top: 2rem;
+            padding: 1rem 2rem;
+            background: transparent;
+            color: white;
+            border: 1px solid white;
+            font-size: 1rem;
+            letter-spacing: 0.2em;
+            cursor: pointer;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        #btn-replay:hover {
+            background: white;
+            color: black;
+        }
+
+        /* Loading Screen */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 1s ease;
+        }
+        
+        .loader-text {
+            font-size: 1.5rem;
+            letter-spacing: 0.3em;
+            font-weight: 300;
+            margin-bottom: 1rem;
+        }
+
+        .loader-bar-container {
+            width: 200px;
+            height: 2px;
+            background: #333;
+            overflow: hidden;
+        }
+
+        .loader-bar {
+            height: 100%;
+            width: 0%;
+            background: #fff;
+            transition: width 0.2s ease;
+        }
+
+        /* Utility */
+        .interactive-zone {
+            pointer-events: auto;
+        }
+    </style>
+
+    <!-- Import Map for ES Modules support natively in Browser -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/index.js",
+                "gsap/ScrollTrigger": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/ScrollTrigger.js"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <!-- SCROLL PROXY -->
+    <div id="scroll-proxy"></div>
+
+    <!-- UI LAYER -->
+    <div id="ui-layer">
+        <div id="text-intro" class="cinematic-text" style="opacity: 1; transform: translateY(0);">ENTER THE EXPERIENCE<br><span class="subtitle">Scroll Slowly</span></div>
+        <div id="text-discover" class="cinematic-text">DISCOVER</div>
+        <div id="text-create" class="cinematic-text">CREATE</div>
+        <div id="text-transform" class="cinematic-text">TRANSFORM</div>
+        
+        <div id="info-panel">
+            <h3 style="margin-top:0; font-weight: 300; letter-spacing: 2px;">CORE MODULE</h3>
+            <p style="font-size: 0.9rem; color: #ccc; line-height: 1.5;">Data extracted from volumetric scan. System is stable. Scroll to continue journey.</p>
+        </div>
+
+        <div id="text-final" class="cinematic-text">YOUR STORY STARTS HERE
+            <br>
+            <button id="btn-replay">REPLAY EXPERIENCE</button>
+        </div>
+    </div>
+
+    <!-- LOADING SCREEN -->
+    <div id="loader">
+        <div class="loader-text">INITIALIZING</div>
+        <div class="loader-bar-container">
+            <div id="loader-bar" class="loader-bar"></div>
+        </div>
+    </div>
+
+    <!-- 3D CANVAS -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- APPLICATION LOGIC -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { gsap } from 'gsap';
+        import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+        // Register Plugin
+        gsap.registerPlugin(ScrollTrigger);
+
+        /**
+         * APPLICATION ARCHITECTURE
+         * - Config & State
+         * - Core Three.js Setup (Scene, Camera, Renderer)
+         * - Environment & Materials
+         * - Scene Builders (S1 to S7)
+         * - Scroll Timeline Orchestrator
+         * - Interaction Controller
+         * - Animation/Render Loop
+         */
+
+        // ==========================================
+        // 1. CONFIG & STATE
+        // ==========================================
+        const CONFIG = {
+            scrollDepth: 600, // Total Z distance to travel
+            cameraBaseY: 0,
+            colors: {
+                bg: 0x030303,
+                fog: 0x050508,
+                accent: 0x5e81ac,
+                glow: 0x88c0d0
+            }
+        };
+
+        const STATE = {
+            mouseX: 0,
+            mouseY: 0,
+            isMobile: window.innerWidth < 768,
+            interactionActive: false
+        };
+
+        // ==========================================
+        // 2. CORE SETUP
+        // ==========================================
+        const canvas = document.querySelector('#webgl-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2 for performance
+        renderer.setClearColor(CONFIG.colors.bg);
+        
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(CONFIG.colors.fog, 0.015); // Volumetric illusion
+
+        // Zero-Gravity Camera System: Group for Scroll, Camera for local Parallax
+        const cameraGroup = new THREE.Group();
+        scene.add(cameraGroup);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, CONFIG.cameraBaseY, 0);
+        cameraGroup.add(camera);
+
+        // Raycaster for Interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // ==========================================
+        // 3. ENVIRONMENT & SHARED ASSETS
+        // ==========================================
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambientLight);
+
+        const heroLight = new THREE.PointLight(CONFIG.colors.glow, 2, 50);
+        heroLight.position.set(0, 5, -10);
+        cameraGroup.add(heroLight); // Light follows camera
+
+        // Shared Materials (Optimized)
+        const wireframeMat = new THREE.MeshBasicMaterial({ color: CONFIG.colors.accent, wireframe: true, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending });
+        const solidMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2, metalness: 0.8 });
+        const emissiveMat = new THREE.MeshBasicMaterial({ color: CONFIG.colors.glow, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.8 });
+
+        // Global Particles
+        function createGlobalParticles() {
+            const count = STATE.isMobile ? 1500 : 4000;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(count * 3);
+            for(let i=0; i < count*3; i+=3) {
+                pos[i] = (Math.random() - 0.5) * 100;
+                pos[i+1] = (Math.random() - 0.5) * 100;
+                pos[i+2] = (Math.random() - 1.0) * CONFIG.scrollDepth; // Spread along flight path
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.1, color: 0xffffff, transparent: true, opacity: 0.4 });
+            const particles = new THREE.Points(geo, mat);
+            scene.add(particles);
+            return particles;
+        }
+        const particles = createGlobalParticles();
+
+        // Object references for animation loop
+        const animatedObjects = {
+            portal: null,
+            character: null,
+            shatterPieces: [],
+            interactives: []
+        };
+
+        // ==========================================
+        // 4. SCENE BUILDERS
+        // ==========================================
+
+        // SCENE 1: PORTAL (z = -20)
+        function createPortal() {
+            const group = new THREE.Group();
+            group.position.set(0, 0, -20);
+            
+            for(let i=0; i<3; i++) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(8 + i*0.5, 0.05, 16, 100), emissiveMat);
+                ring.rotation.x = Math.PI / 2;
+                ring.userData.rotationSpeed = (Math.random() - 0.5) * 0.02;
+                group.add(ring);
+            }
+            scene.add(group);
+            animatedObjects.portal = group;
+        }
+
+        // SCENE 2: WORLD (z = -60 to -120) - Using InstancedMesh for Performance
+        function createWorld() {
+            const count = STATE.isMobile ? 100 : 250;
+            const geo = new THREE.BoxGeometry(2, 2, 2);
+            const mesh = new THREE.InstancedMesh(geo, wireframeMat, count);
+            
+            const dummy = new THREE.Object3D();
+            for(let i=0; i<count; i++) {
+                dummy.position.set(
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 40,
+                    -60 - Math.random() * 60
+                );
+                dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+                // Create a hollow path in the middle for camera
+                if (Math.abs(dummy.position.x) < 5 && Math.abs(dummy.position.y) < 5) {
+                    dummy.position.x += 10 * Math.sign(dummy.position.x + 0.01);
+                }
+                dummy.updateMatrix();
+                mesh.setMatrixAt(i, dummy.matrix);
+            }
+            scene.add(mesh);
+        }
+
+        // SCENE 3: CHARACTER (z = -160)
+        function createCharacter() {
+            const group = new THREE.Group();
+            group.position.set(0, 0, -160);
+
+            const core = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 0), solidMat);
+            const aura = new THREE.Mesh(new THREE.IcosahedronGeometry(3, 1), wireframeMat);
+            
+            group.add(core, aura);
+            scene.add(group);
+            animatedObjects.character = group;
+        }
+
+        // SCENE 4: TRANSFORMATION (z = -250)
+        function createTransformation() {
+            const group = new THREE.Group();
+            group.position.set(0, 0, -250);
+            
+            const geo = new THREE.BoxGeometry(1, 1, 1);
+            // Create a 3x3x3 cube
+            for(let x=-1; x<=1; x++) {
+                for(let y=-1; y<=1; y++) {
+                    for(let z=-1; z<=1; z++) {
+                        const mesh = new THREE.Mesh(geo, solidMat);
+                        mesh.position.set(x*1.1, y*1.1, z*1.1);
+                        
+                        // Store origin and target for explosion
+                        mesh.userData = {
+                            origin: mesh.position.clone(),
+                            target: new THREE.Vector3(x*8, y*8, z*8),
+                            rotOrigin: new THREE.Euler(0,0,0),
+                            rotTarget: new THREE.Euler(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI)
+                        };
+                        group.add(mesh);
+                        animatedObjects.shatterPieces.push(mesh);
+                    }
+                }
+            }
+            scene.add(group);
+        }
+
+        // SCENE 5: INTERACTION (z = -350)
+        function createInteraction() {
+            const group = new THREE.Group();
+            group.position.set(0, 0, -350);
+
+            const geo = new THREE.TorusKnotGeometry(2, 0.5, 100, 16);
+            const mesh = new THREE.Mesh(geo, wireframeMat);
+            mesh.userData.interactive = true;
+            group.add(mesh);
+            
+            scene.add(group);
+            animatedObjects.interactives.push(mesh);
+        }
+
+        // SCENE 7: FINAL (z = -500)
+        function createFinal() {
+            const group = new THREE.Group();
+            group.position.set(0, 0, -500);
+
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(15, 0.1, 16, 100), emissiveMat);
+            const center = new THREE.Mesh(new THREE.OctahedronGeometry(3, 0), solidMat);
+            group.add(ring, center);
+            scene.add(group);
+        }
+
+        // Initialize all scenes
+        createPortal();
+        createWorld();
+        createCharacter();
+        createTransformation();
+        createInteraction();
+        createFinal();
+
+        // ==========================================
+        // 5. SCROLL TIMELINE ORCHESTRATION
+        // ==========================================
+        function setupTimeline() {
+            const tl = gsap.timeline({
+                scrollTrigger: {
+                    trigger: "#scroll-proxy",
+                    start: "top top",
+                    end: "bottom bottom",
+                    scrub: 1.5 // Smooth dampening
+                }
+            });
+
+            // Master Camera Movement (Z-axis flight)
+            tl.to(cameraGroup.position, { z: -500, ease: "none" }, 0);
+
+            // Time markers relative to progress (0 to 1)
+            
+            // 0 - 0.1: Portal Entry
+            tl.to("#text-intro", { opacity: 0, y: -20, duration: 0.05 }, 0.02);
+            tl.to(animatedObjects.portal.scale, { x: 3, y: 3, z: 3, duration: 0.1 }, 0);
+            
+            // 0.15 - 0.25: World
+            tl.to("#text-discover", { opacity: 1, y: 0, duration: 0.05 }, 0.15);
+            tl.to(cameraGroup.rotation, { z: Math.PI * 0.1, duration: 0.1, ease: "power1.inOut" }, 0.15); // Tilt
+            tl.to("#text-discover", { opacity: 0, y: -20, duration: 0.05 }, 0.25);
+            tl.to(cameraGroup.rotation, { z: 0, duration: 0.1, ease: "power1.inOut" }, 0.25);
+
+            // 0.28 - 0.38: Character (Orbit slightly)
+            tl.to("#text-create", { opacity: 1, y: 0, duration: 0.05 }, 0.28);
+            tl.to(cameraGroup.position, { x: 5, duration: 0.1 }, 0.28);
+            tl.to(cameraGroup.rotation, { y: 0.2, duration: 0.1 }, 0.28);
+            tl.to("#text-create", { opacity: 0, y: -20, duration: 0.05 }, 0.38);
+            tl.to(cameraGroup.position, { x: 0, duration: 0.05 }, 0.38);
+            tl.to(cameraGroup.rotation, { y: 0, duration: 0.05 }, 0.38);
+
+            // 0.45 - 0.55: Transformation (Explode and Reform)
+            tl.to("#text-transform", { opacity: 1, y: 0, duration: 0.05 }, 0.42);
+            animatedObjects.shatterPieces.forEach(piece => {
+                // Explode out
+                tl.to(piece.position, { x: piece.userData.target.x, y: piece.userData.target.y, z: piece.userData.target.z, duration: 0.04, ease: "power2.out" }, 0.44);
+                tl.to(piece.rotation, { x: piece.userData.rotTarget.x, y: piece.userData.rotTarget.y, z: piece.userData.rotTarget.z, duration: 0.04 }, 0.44);
+                // Reform back
+                tl.to(piece.position, { x: piece.userData.origin.x, y: piece.userData.origin.y, z: piece.userData.origin.z, duration: 0.06, ease: "power2.in" }, 0.50);
+                tl.to(piece.rotation, { x: piece.userData.rotOrigin.x, y: piece.userData.rotOrigin.y, z: piece.userData.rotOrigin.z, duration: 0.06 }, 0.50);
+            });
+            tl.to("#text-transform", { opacity: 0, y: -20, duration: 0.05 }, 0.55);
+
+            // 0.65 - 0.75: Interaction Zone
+            tl.call(() => { STATE.interactionActive = true; }, null, 0.65);
+            tl.call(() => { 
+                STATE.interactionActive = false; 
+                document.getElementById('info-panel').classList.remove('active');
+            }, null, 0.75); // Turn off raycasting when passed
+
+            // 0.75 - 0.90: High Speed Tunnel
+            tl.to(scene.fog, { density: 0.03, duration: 0.05 }, 0.75);
+            tl.to(camera.fov, { value: 90, duration: 0.1, onUpdate: () => camera.updateProjectionMatrix() }, 0.75);
+            
+            // 0.95 - 1.0: Final
+            tl.to(scene.fog, { density: 0.015, duration: 0.05 }, 0.90);
+            tl.to(camera.fov, { value: 60, duration: 0.1, onUpdate: () => camera.updateProjectionMatrix() }, 0.90);
+            tl.to("#text-final", { opacity: 1, y: 0, duration: 0.05 }, 0.95);
+        }
+
+        // ==========================================
+        // 6. INPUT & INTERACTION
+        // ==========================================
+        window.addEventListener('mousemove', (e) => {
+            // Normalized coords for Raycaster
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            // Screen coords for Parallax (-1 to 1)
+            STATE.mouseX = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2);
+            STATE.mouseY = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2);
+        });
+
+        window.addEventListener('click', () => {
+            if(!STATE.interactionActive) return;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(animatedObjects.interactives);
+            
+            if(intersects.length > 0) {
+                const panel = document.getElementById('info-panel');
+                panel.classList.toggle('active');
+                
+                // Visual feedback
+                gsap.to(intersects[0].object.scale, { x: 1.2, y: 1.2, z: 1.2, duration: 0.2, yoyo: true, repeat: 1 });
+            }
+        });
+
+        // Replay Button
+        document.getElementById('btn-replay').addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // Responsive Resize
+        window.addEventListener('resize', () => {
+            STATE.isMobile = window.innerWidth < 768;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==========================================
+        // 7. RENDER LOOP (Zero-Gravity & Updates)
+        // ==========================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            // 1. Mouse Parallax (Damping for smooth feel)
+            // LERP local camera position relative to the cameraGroup driven by GSAP
+            camera.position.x += (STATE.mouseX * 2 - camera.position.x) * delta * 2;
+            camera.position.y += (-STATE.mouseY * 2 - camera.position.y) * delta * 2;
+            
+            // Add subtle floating to camera group
+            cameraGroup.position.y += Math.sin(time) * 0.002;
+
+            // 2. Continuous Idle Animations
+            if(animatedObjects.portal) {
+                animatedObjects.portal.children.forEach(ring => {
+                    ring.rotation.z += ring.userData.rotationSpeed;
+                });
+            }
+
+            if(animatedObjects.character) {
+                animatedObjects.character.rotation.y += delta * 0.5;
+                animatedObjects.character.position.y = Math.sin(time * 2) * 0.5 - 160;
+            }
+
+            if(animatedObjects.interactives.length > 0) {
+                animatedObjects.interactives[0].rotation.x += delta * 0.2;
+                animatedObjects.interactives[0].rotation.y += delta * 0.3;
+                
+                // Hover logic during interaction phase
+                if(STATE.interactionActive) {
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(animatedObjects.interactives);
+                    document.body.style.cursor = intersects.length > 0 ? 'pointer' : 'default';
+                } else {
+                    document.body.style.cursor = 'default';
+                }
+            }
+
+            // Move particles slowly to feel alive
+            particles.position.z += delta * 2;
+            if(particles.position.z > 50) particles.position.z = 0; // Reset seamless
+
+            // Render!
+            renderer.render(scene, camera);
+        }
+
+        // ==========================================
+        // 8. BOOTSTRAP & LOAD
+        // ==========================================
+        window.onload = () => {
+            // Fake loading progress since we procedurally generate assets
+            let progress = 0;
+            const bar = document.getElementById('loader-bar');
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if(progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    
+                    bar.style.width = '100%';
+                    setTimeout(() => {
+                        const loader = document.getElementById('loader');
+                        loader.style.opacity = '0';
+                        setTimeout(() => loader.remove(), 1000);
+                        
+                        // Start Systems
+                        setupTimeline();
+                        animate();
+                        
+                        // Force a scroll refresh in case user reloaded midway
+                        ScrollTrigger.refresh();
+                    }, 500);
+                } else {
+                    bar.style.width = progress + '%';
+                }
+            }, 50);
+        };
+    </script>
+</body>
+</html>
